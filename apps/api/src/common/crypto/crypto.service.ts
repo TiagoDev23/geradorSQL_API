@@ -1,13 +1,6 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 @Injectable()
 export class CryptoService {
@@ -15,8 +8,9 @@ export class CryptoService {
   private readonly key: Buffer;
 
   constructor(configService: ConfigService) {
-    const encryptionKey =
-      configService.getOrThrow<string>('CONNECTION_ENCRYPTION_KEY');
+    const encryptionKey = configService.getOrThrow<string>(
+      'CONNECTION_ENCRYPTION_KEY',
+    );
 
     const key = Buffer.from(encryptionKey, 'hex');
 
@@ -32,11 +26,7 @@ export class CryptoService {
   encrypt(value: string): string {
     const iv = randomBytes(12);
 
-    const cipher = createCipheriv(
-      this.algorithm,
-      this.key,
-      iv,
-    );
+    const cipher = createCipheriv(this.algorithm, this.key, iv);
 
     const encrypted = Buffer.concat([
       cipher.update(value, 'utf8'),
@@ -53,10 +43,14 @@ export class CryptoService {
   }
 
   decrypt(value: string): string {
-    const [ivHex, authTagHex, encryptedHex] =
-      value.split(':');
+    const components = value.split(':');
 
-    if (!ivHex || !authTagHex || !encryptedHex) {
+    const [ivHex, authTagHex, encryptedHex] = components;
+
+    // O ciphertext pode ser vazio quando o valor original também é,
+    // portanto apenas a presença dos três componentes e do IV e do
+    // authentication tag é exigida.
+    if (components.length !== 3 || !ivHex || !authTagHex) {
       throw new InternalServerErrorException(
         'Credencial criptografada inválida.',
       );
@@ -68,14 +62,10 @@ export class CryptoService {
       Buffer.from(ivHex, 'hex'),
     );
 
-    decipher.setAuthTag(
-      Buffer.from(authTagHex, 'hex'),
-    );
+    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
 
     const decrypted = Buffer.concat([
-      decipher.update(
-        Buffer.from(encryptedHex, 'hex'),
-      ),
+      decipher.update(Buffer.from(encryptedHex, 'hex')),
       decipher.final(),
     ]);
 

@@ -427,3 +427,100 @@ Nenhum problema técnico relevante nesta etapa.
 Segurança e implementação. A justificativa para criptografia reversível em vez de
 hashing, e para a escolha de um modo autenticado, é diretamente aproveitável na
 discussão do tratamento de credenciais.
+
+---
+
+### [2026-08-21] — M1: Database Connections
+
+**Objetivo**
+
+Permitir que um projeto cadastre conexões com bancos PostgreSQL externos, teste
+essas conexões e o faça sem armazenar credenciais em texto puro.
+
+**Implementação realizada**
+
+Módulo de conexões com CRUD completo e verificação de conectividade, exposto em
+seis rotas. As operações de criação e listagem são subordinadas ao projeto; as
+demais operam sobre o identificador da conexão. A senha recebida é cifrada pelo
+`CryptoService` antes de persistir e nunca é devolvida. Foram criados também os
+testes do `CryptoService`, pendentes desde a etapa anterior.
+
+**Decisões técnicas**
+
+- lista explícita de campos públicos no service, com `passwordEncrypted` omitido
+  por construção, em vez de remoção do campo após a consulta — a credencial
+  cifrada nunca chega a ser carregada nas rotas de leitura;
+- bancos externos acessados exclusivamente por `pg`, com `Client` de vida curta:
+  timeout de 5 s para conexão e para consultas, e encerramento em bloco `finally`
+  para não deixar recursos abertos mesmo em caso de falha;
+- erros do PostgreSQL retidos no log da aplicação; o cliente recebe apenas uma
+  mensagem genérica com status 503, evitando que detalhes do servidor externo
+  sejam expostos;
+- verificação prévia da existência de consultas salvas antes de remover uma
+  conexão, devolvendo conflito com mensagem clara em vez de um erro de
+  integridade referencial vindo do banco;
+- na atualização, a credencial só é substituída quando a senha é informada,
+  permitindo editar host, porta ou nome sem reenviar a senha.
+
+**Funcionamento**
+
+Usuário cadastra a conexão → senha é cifrada e persistida → ao solicitar o teste,
+a credencial é decifrada em memória, um cliente temporário conecta ao banco
+externo, executa `SELECT current_database(), current_user, version()`, e o
+cliente é encerrado → a resposta traz banco, usuário, versão do servidor e
+duração da verificação.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte automatizada com 28 testes em 3
+arquivos: 15 para o `CryptoService` (formato do valor cifrado, unicidade do IV,
+rejeição de chave inválida, de valor adulterado e de valor cifrado com outra
+chave) e 13 para o service de conexões (cifragem antes da persistência, ausência
+de `passwordEncrypted` nas projeções, preservação da credencial na atualização e
+regras de conflito).
+
+Verificação funcional das seis rotas contra PostgreSQL 17.11 em container. O
+teste de conectividade bem-sucedido retornou banco, usuário e versão em 11 ms.
+Confirmou-se no banco interno que as credenciais estão gravadas em três
+componentes hexadecimais e que a senha em texto puro não aparece em nenhum
+registro. Os casos de erro responderam conforme esperado: 409 para nome
+duplicado, 404 para projeto ou conexão inexistente, 400 para UUID inválido,
+porta fora de faixa e tentativa de enviar `passwordEncrypted` no corpo, e 503
+para falha de autenticação no banco externo.
+
+**Resultado**
+
+A aplicação passou a permitir o cadastro e a verificação de conexões PostgreSQL
+externas sem persistir credenciais em texto puro e sem expor detalhes técnicos
+do servidor de destino.
+
+**Problemas encontrados e soluções**
+
+*Problema.* O `CryptoService` rejeitava a própria saída ao decifrar um valor
+originalmente vazio.
+*Causa.* A validação exigia ciphertext não vazio, condição que o modo GCM não
+garante quando o texto de origem é vazio.
+*Solução.* A verificação passou a exigir a presença dos três componentes e o
+preenchimento apenas do IV e do authentication tag. O defeito foi encontrado
+pelos testes, antes de qualquer uso em produção.
+
+*Problema.* O teste de conexão contra o banco demo falhou com `28P01`.
+*Causa.* A senha registrada em `.env` não corresponde à que o container recebeu
+na inicialização do volume; a imagem do PostgreSQL aplica `POSTGRES_PASSWORD`
+apenas na primeira execução. Não se trata de defeito da aplicação.
+*Solução.* A verificação funcional bem-sucedida foi feita contra o container da
+plataforma, na porta 5434, que do ponto de vista do código é apenas mais um
+PostgreSQL externo. A divergência do banco demo permanece em aberto e precisa ser
+resolvida antes da etapa M3.
+
+*Problema.* O Jest não resolvia os imports com extensão `.js` do client gerado
+pelo Prisma, resolvidos pelo compilador mas não pelo resolvedor de testes.
+*Solução.* Mapeamento desses especificadores na configuração do Jest, sem
+alteração de código de aplicação nem de dependências.
+
+**Possível utilização no TCC**
+
+Implementação e segurança. O tratamento de credenciais, o isolamento dos erros do
+banco externo e o ciclo de vida curto das conexões são aproveitáveis na
+discussão de segurança; a medição de duração do teste inaugura a coleta de
+métricas que será ampliada nas etapas de runtime e desempenho.

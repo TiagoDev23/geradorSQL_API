@@ -1,15 +1,3 @@
-Sim. Daqui para frente podemos entregar a implementação pesada ao Claude no VS Code, porque já fizemos manualmente as decisões que eu não queria deixar uma IA improvisar: stack, monorepo, Docker, bancos, Prisma, modelo interno e fluxo básico de projeto.
-
-O ideal agora é colocar um **`CLAUDE.md` na raiz do repositório**. Ele vira a regra permanente do projeto para o Claude Code/integração do Claude no VS Code.
-
-Crie:
-
-```text
-C:\Meu-gerador-de-api\CLAUDE.md
-```
-
-e coloque o conteúdo abaixo.
-
 ````md
 # CLAUDE.md
 
@@ -770,12 +758,12 @@ PrismaModule       ✅
 HealthModule       ✅
 ProjectsModule     ✅
 CryptoModule       ✅
+DatabaseConnectionsModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
-DatabaseConnectionsModule
 DatabaseIntrospectionModule
 SavedQueriesModule
 QueryParametersModule ou lógica subordinada ao SavedQuery
@@ -1421,6 +1409,7 @@ Migration inicial       OK
 Health check            OK
 ProjectsModule          OK
 CryptoService           OK
+DatabaseConnections     OK
 ```
 
 Rotas existentes importantes:
@@ -1434,6 +1423,13 @@ GET    /projects
 GET    /projects/:id
 PATCH  /projects/:id
 DELETE /projects/:id
+
+POST   /projects/:projectId/connections
+GET    /projects/:projectId/connections
+GET    /connections/:id
+PATCH  /connections/:id
+DELETE /connections/:id
+POST   /connections/:id/test
 ```
 
 Projeto de demonstração existente:
@@ -1451,9 +1447,9 @@ Implementação principal pendente:
 
 ```text
 [x] CryptoService
-[ ] testes do CryptoService
-[ ] DatabaseConnectionsModule
-[ ] teste de conexão externa
+[x] testes do CryptoService
+[x] DatabaseConnectionsModule
+[x] teste de conexão externa
 [ ] introspecção PostgreSQL
 [ ] banco demo com estrutura real
 [ ] SavedQueriesModule
