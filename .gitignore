@@ -1,0 +1,25 @@
+.env
+.env.local
+.env.*.local
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+.next/
+
+# Logs
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+
+# Prisma generated client
+apps/api/src/generated/prisma/

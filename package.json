@@ -1,0 +1,12 @@
+{
+  "name": "meu-gerador-de-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma web para criação dinâmica de endpoints REST a partir de consultas SQL em bancos PostgreSQL",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api start:dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  }
+}
