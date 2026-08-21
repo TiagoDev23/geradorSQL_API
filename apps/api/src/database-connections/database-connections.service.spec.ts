@@ -3,6 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CryptoService } from '../common/crypto/crypto.service';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { DatabaseConnectionsService } from './database-connections.service';
+import { ExternalDatabaseService } from './external-database.service';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const CONNECTION_ID = '22222222-2222-4222-8222-222222222222';
@@ -43,6 +44,7 @@ function firstCallArgs(mock: jest.Mock): PrismaCallArgs {
 describe('DatabaseConnectionsService', () => {
   let prisma: ReturnType<typeof buildPrismaMock>;
   let crypto: { encrypt: jest.Mock; decrypt: jest.Mock };
+  let externalDatabase: { run: jest.Mock };
   let service: DatabaseConnectionsService;
 
   const baseDto = {
@@ -61,9 +63,12 @@ describe('DatabaseConnectionsService', () => {
       decrypt: jest.fn(() => 'senha-em-texto-puro'),
     };
 
+    externalDatabase = { run: jest.fn() };
+
     service = new DatabaseConnectionsService(
       prisma as unknown as PrismaService,
       crypto as unknown as CryptoService,
+      externalDatabase as unknown as ExternalDatabaseService,
     );
 
     prisma.project.findUnique.mockResolvedValue({

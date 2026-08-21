@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { DatabaseConnectionsModule } from './database-connections/database-connections.module';
+import { DatabaseIntrospectionModule } from './database-introspection/database-introspection.module';
 import { HealthModule } from './health/health.module';
 import { ProjectsModule } from './projects/projects.module';
 import { CryptoModule } from './common/crypto/crypto.module';
@@ -20,6 +21,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     ProjectsModule,
     CryptoModule,
     DatabaseConnectionsModule,
+    DatabaseIntrospectionModule,
   ],
 
   controllers: [AppController],

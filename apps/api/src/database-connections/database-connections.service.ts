@@ -1,17 +1,14 @@
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
-import { Client } from 'pg';
 
 import { CryptoService } from '../common/crypto/crypto.service';
 import { PrismaService } from '../database/prisma/prisma.service';
-import { DatabaseSslMode } from '../generated/prisma/enums';
 import { CreateDatabaseConnectionDto } from './dto/create-database-connection.dto';
 import { UpdateDatabaseConnectionDto } from './dto/update-database-connection.dto';
+import { ExternalDatabaseService } from './external-database.service';
 
 /**
  * Campos expostos pela API. `passwordEncrypted` é deliberadamente
@@ -31,9 +28,6 @@ const CONNECTION_PUBLIC_FIELDS = {
   updatedAt: true,
 } as const;
 
-const CONNECTION_TIMEOUT_MS = 5000;
-const QUERY_TIMEOUT_MS = 5000;
-
 interface ConnectionTestRow {
   database: string;
   user: string;
@@ -42,11 +36,10 @@ interface ConnectionTestRow {
 
 @Injectable()
 export class DatabaseConnectionsService {
-  private readonly logger = new Logger(DatabaseConnectionsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly externalDatabase: ExternalDatabaseService,
   ) {}
 
   async create(projectId: string, dto: CreateDatabaseConnectionDto) {
@@ -192,75 +185,28 @@ export class DatabaseConnectionsService {
   }
 
   /**
-   * Abre uma conexão temporária ao banco externo, executa uma consulta
-   * mínima de verificação e encerra o cliente em qualquer cenário.
+   * Verifica a conectividade executando uma consulta mínima no banco
+   * externo. A abertura e o encerramento do cliente ficam a cargo do
+   * ExternalDatabaseService.
    */
   async test(id: string) {
-    const connection = await this.prisma.databaseConnection.findUnique({
-      where: {
-        id,
-      },
-
-      select: {
-        ...CONNECTION_PUBLIC_FIELDS,
-        passwordEncrypted: true,
-      },
-    });
-
-    if (!connection) {
-      throw new NotFoundException('Conexão não encontrada.');
-    }
-
-    const client = new Client({
-      host: connection.host,
-      port: connection.port,
-      database: connection.databaseName,
-      user: connection.username,
-      password: this.crypto.decrypt(connection.passwordEncrypted),
-
-      // sslMode REQUIRE exige canal cifrado, sem validação de cadeia
-      // de certificados, equivalente ao sslmode=require do PostgreSQL.
-      ssl:
-        connection.sslMode === DatabaseSslMode.REQUIRE
-          ? { rejectUnauthorized: false }
-          : false,
-
-      connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
-      query_timeout: QUERY_TIMEOUT_MS,
-      statement_timeout: QUERY_TIMEOUT_MS,
-      application_name: 'gerador-api',
-    });
-
     const startedAt = Date.now();
 
-    try {
-      await client.connect();
-
+    const row = await this.externalDatabase.run(id, async (client) => {
       const result = await client.query<ConnectionTestRow>(
         'SELECT current_database() AS database, current_user AS "user", version() AS version',
       );
 
-      const row = result.rows[0];
+      return result.rows[0];
+    });
 
-      return {
-        success: true,
-        database: row.database,
-        user: row.user,
-        serverVersion: row.version,
-        durationMs: Date.now() - startedAt,
-      };
-    } catch (error) {
-      // O erro bruto do PostgreSQL fica restrito ao log da aplicação.
-      this.logger.warn(
-        `Falha ao testar a conexão ${id}: ${this.describeError(error)}`,
-      );
-
-      throw new ServiceUnavailableException(
-        'Não foi possível conectar ao banco informado.',
-      );
-    } finally {
-      await client.end().catch(() => undefined);
-    }
+    return {
+      success: true,
+      database: row.database,
+      user: row.user,
+      serverVersion: row.version,
+      durationMs: Date.now() - startedAt,
+    };
   }
 
   private async ensureProjectExists(projectId: string): Promise<void> {
@@ -302,15 +248,5 @@ export class DatabaseConnectionsService {
         `Já existe uma conexão com o nome "${name}" neste projeto.`,
       );
     }
-  }
-
-  private describeError(error: unknown): string {
-    if (error instanceof Error) {
-      const code = (error as { code?: string }).code;
-
-      return code ? `${code} — ${error.message}` : error.message;
-    }
-
-    return 'erro desconhecido';
   }
 }

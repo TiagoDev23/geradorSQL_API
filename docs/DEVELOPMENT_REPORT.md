@@ -524,3 +524,94 @@ Implementação e segurança. O tratamento de credenciais, o isolamento dos erro
 banco externo e o ciclo de vida curto das conexões são aproveitáveis na
 discussão de segurança; a medição de duração do teste inaugura a coleta de
 métricas que será ampliada nas etapas de runtime e desempenho.
+
+---
+
+### [2026-08-21] — M2: Introspecção PostgreSQL
+
+**Objetivo**
+
+Permitir que a plataforma consulte a estrutura de um banco externo já
+cadastrado, para que o usuário possa escrever consultas conhecendo schemas,
+tabelas, colunas e relacionamentos disponíveis.
+
+**Implementação realizada**
+
+Módulo de introspecção com três rotas: listagem de schemas, listagem de tabelas
+e views com filtro opcional por schema, e detalhamento de uma tabela com
+colunas, tipos, nulidade, valores padrão, chave primária e chaves estrangeiras.
+
+O acesso a bancos externos, antes contido no módulo de conexões, foi extraído
+para um serviço próprio compartilhado pelos dois módulos. O teste de conexão do
+M1 passou a usá-lo, sem alteração de comportamento.
+
+**Decisões técnicas**
+
+- introspecção sob demanda, sem espelhar a estrutura do banco do usuário no
+  banco interno, evitando o problema de manter em sincronia uma cópia de algo
+  que muda fora da governança da plataforma;
+- consultas sobre `pg_catalog` em vez de `information_schema`: o padrão não
+  expõe de forma confiável a ordem das colunas em chaves compostas nem o tipo
+  formatado da coluna. `generate_subscripts` percorre `conkey` e `confkey`
+  preservando essa ordem, de modo que chaves compostas sejam reconstruídas
+  corretamente;
+- schema e tabela sempre enviados como parâmetros posicionais, nunca
+  concatenados ao SQL, mesmo vindo de segmentos de URL;
+- extração do acesso externo para serviço único, concentrando decifragem da
+  credencial, timeouts, encerramento do cliente e conversão de erros. Erros de
+  domínio da operação, como tabela inexistente, são preservados; os demais são
+  convertidos em resposta genérica;
+- distinção entre falha de conexão e falha de consulta, com mensagens
+  correspondentes, sem expor detalhe técnico ao cliente;
+- ausência de filtro por schema devolve todos os schemas visíveis: aplicar o
+  `defaultSchema` da conexão automaticamente esconderia estruturas que o
+  usuário pode querer consultar.
+
+**Funcionamento**
+
+Requisição informa a conexão → credencial é decifrada → cliente temporário
+conecta ao banco externo → consulta ao catálogo do PostgreSQL → resultado é
+convertido em estrutura JSON própria → cliente é encerrado.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros nos arquivos dos módulos. Suíte
+automatizada ampliada de 28 para 36 testes em 4 arquivos; os 8 novos cobrem a
+exclusão de schemas internos, a parametrização posicional, a marcação das
+colunas que compõem a chave primária, a ausência de chave primária e o
+agrupamento de chave estrangeira composta em uma única relação.
+
+Verificação funcional contra o banco interno da plataforma, usado como banco
+externo por possuir estrutura real: 1 schema e 9 tabelas listados corretamente.
+O detalhamento de `RequestLog` devolveu as 8 colunas com tipos formatados
+(incluindo `timestamp(3) without time zone`), nulidade correta, valor padrão
+`CURRENT_TIMESTAMP`, a chave primária marcada na coluna correspondente e as duas
+chaves estrangeiras resolvidas para `ApiKey` e `Endpoint`. Filtro por schema
+inexistente devolveu lista vazia; tabela inexistente, 404; conexão inexistente,
+404; identificador fora do formato UUID, 400.
+
+Tentativa de injeção pelo segmento de URL da tabela foi tratada como nome
+literal, resultando em 404, e a integridade das tabelas do banco foi conferida
+em seguida. O teste de conexão do M1 foi reexecutado após a refatoração e
+manteve o comportamento anterior.
+
+**Resultado**
+
+A plataforma passou a expor a estrutura de bancos PostgreSQL cadastrados,
+incluindo relacionamentos, sem armazenar essa estrutura e sem expor o catálogo
+diretamente ao cliente.
+
+**Problemas encontrados e soluções**
+
+*Problema.* O tratamento de erro centralizado converteria também as exceções de
+domínio lançadas pela operação, transformando "tabela não encontrada" em erro
+genérico de consulta.
+*Solução.* O serviço compartilhado repassa exceções HTTP sem alteração e
+converte apenas as demais.
+
+**Possível utilização no TCC**
+
+Implementação e arquitetura da solução. A justificativa para introspecção sob
+demanda e para o uso de `pg_catalog` em lugar de `information_schema` é
+aproveitável na discussão do acesso a bancos heterogêneos; a extração do serviço
+compartilhado ilustra a separação entre Control Plane e Data Plane.

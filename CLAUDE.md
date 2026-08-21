@@ -759,12 +759,12 @@ HealthModule       ✅
 ProjectsModule     ✅
 CryptoModule       ✅
 DatabaseConnectionsModule ✅
+DatabaseIntrospectionModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
-DatabaseIntrospectionModule
 SavedQueriesModule
 QueryParametersModule ou lógica subordinada ao SavedQuery
 EndpointsModule
@@ -1410,6 +1410,7 @@ Health check            OK
 ProjectsModule          OK
 CryptoService           OK
 DatabaseConnections     OK
+Introspeccao            OK
 ```
 
 Rotas existentes importantes:
@@ -1430,6 +1431,10 @@ GET    /connections/:id
 PATCH  /connections/:id
 DELETE /connections/:id
 POST   /connections/:id/test
+
+GET    /connections/:id/schemas
+GET    /connections/:id/tables
+GET    /connections/:id/tables/:schema/:table
 ```
 
 Projeto de demonstração existente:
@@ -1450,7 +1455,7 @@ Implementação principal pendente:
 [x] testes do CryptoService
 [x] DatabaseConnectionsModule
 [x] teste de conexão externa
-[ ] introspecção PostgreSQL
+[x] introspecção PostgreSQL
 [ ] banco demo com estrutura real
 [ ] SavedQueriesModule
 [ ] QueryParameters
