@@ -769,12 +769,12 @@ ConfigModule       ✅
 PrismaModule       ✅
 HealthModule       ✅
 ProjectsModule     ✅
+CryptoModule       ✅
 ```
 
 Criar gradualmente:
 
 ```text
-CryptoModule
 DatabaseConnectionsModule
 DatabaseIntrospectionModule
 SavedQueriesModule
@@ -1420,6 +1420,7 @@ Prisma                  OK
 Migration inicial       OK
 Health check            OK
 ProjectsModule          OK
+CryptoService           OK
 ```
 
 Rotas existentes importantes:
@@ -1449,7 +1450,8 @@ slug: farmacia-demo
 Implementação principal pendente:
 
 ```text
-[ ] CryptoService
+[x] CryptoService
+[ ] testes do CryptoService
 [ ] DatabaseConnectionsModule
 [ ] teste de conexão externa
 [ ] introspecção PostgreSQL
