@@ -1762,3 +1762,207 @@ Claude no VS Code
 **não implementar M1 até M12 de uma vez**. O `CLAUDE.md` contém o projeto inteiro, mas faça **um milestone por vez**. Assim conseguimos testar `Connection → Introspection → SavedQuery → Runtime` progressivamente e não terminamos com milhares de linhas.
 
 
+
+# 42. Relatório de desenvolvimento para o TCC
+
+O desenvolvimento deste projeto também será utilizado como evidência e base para a escrita do Trabalho de Conclusão de Curso.
+
+Por isso, após concluir cada milestone relevante, atualizar obrigatoriamente:
+
+docs/DEVELOPMENT_REPORT.md
+
+O objetivo desse arquivo NÃO é funcionar como changelog técnico detalhado.
+
+Ele deve registrar apenas informações relevantes para posterior escrita acadêmica do TCC.
+
+## Quando atualizar
+
+Atualizar após a conclusão de etapas relevantes, como:
+
+- configuração da arquitetura;
+- criação ou alteração importante do banco interno;
+- Database Connections;
+- introspecção;
+- Saved Queries;
+- validação SQL;
+- criação de endpoints;
+- Runtime;
+- API Keys;
+- logs;
+- autenticação;
+- frontend;
+- testes de desempenho;
+- testes de segurança;
+- deploy;
+- conclusão do MVP.
+
+Não criar uma entrada para pequenas correções, lint, formatação ou ajustes triviais.
+
+---
+
+## Estrutura obrigatória de cada registro
+
+Usar:
+
+### [DATA] — Nome da etapa
+
+**Objetivo**
+
+Explicar brevemente o que esta etapa pretendia implementar.
+
+**Implementação realizada**
+
+Descrever de maneira clara e objetiva o que foi desenvolvido.
+
+Evitar listar todos os arquivos individualmente.
+
+Priorizar funcionalidades e decisões relevantes.
+
+**Decisões técnicas**
+
+Registrar apenas decisões que possam ser justificadas posteriormente no TCC.
+
+Exemplos:
+
+- utilização de Prisma exclusivamente no banco interno;
+- utilização de `pg` para bancos externos;
+- escolha de AES-256-GCM para credenciais;
+- utilização de runtime dinâmico;
+- consultas limitadas a SELECT;
+- estratégia de parametrização;
+- definição de limites de resultados.
+
+**Funcionamento**
+
+Descrever resumidamente o fluxo implementado.
+
+Exemplo:
+
+Usuário cadastra conexão
+→ credencial é criptografada
+→ configuração é persistida
+→ backend utiliza `pg`
+→ conexão externa é testada
+→ resultado seguro é retornado.
+
+**Validação realizada**
+
+Registrar testes realmente executados.
+
+Exemplos:
+
+- build;
+- testes unitários;
+- teste de integração;
+- conexão com banco demo;
+- execução de consulta;
+- teste de endpoint;
+- medição de desempenho.
+
+Nunca afirmar que algo foi testado se não tiver sido efetivamente executado.
+
+**Resultado**
+
+Informar objetivamente o estado final da etapa.
+
+Exemplo:
+
+> A aplicação passou a permitir o cadastro e teste de conexões PostgreSQL externas sem persistir credenciais em texto puro.
+
+**Problemas encontrados e soluções**
+
+Registrar apenas problemas tecnicamente relevantes.
+
+Quando houver, explicar:
+
+- problema;
+- causa;
+- solução aplicada.
+
+Não registrar erros triviais de digitação ou desenvolvimento que não tenham relevância para o trabalho.
+
+**Possível utilização no TCC**
+
+Indicar brevemente em qual parte da monografia essa informação poderá ser aproveitada.
+
+Exemplos:
+
+- metodologia;
+- arquitetura da solução;
+- implementação;
+- segurança;
+- resultados;
+- avaliação de desempenho.
+
+---
+
+## Regras de escrita
+
+O relatório deve:
+
+- ser direto;
+- ser técnico;
+- ser compreensível posteriormente;
+- utilizar português brasileiro;
+- evitar linguagem informal;
+- evitar exageros;
+- evitar afirmações não comprovadas;
+- separar fatos de decisões planejadas;
+- registrar somente aquilo que realmente foi implementado;
+- não inventar métricas;
+- não inventar testes;
+- não inventar resultados.
+
+Não incluir:
+
+- código-fonte completo;
+- logs enormes;
+- stack traces;
+- listas de todos os arquivos alterados;
+- mensagens de commit;
+- detalhes irrelevantes para o TCC.
+
+Quando números forem relevantes, registrar os valores reais.
+
+Exemplo:
+
+- tempo de execução;
+- quantidade de registros;
+- tamanho da base;
+- número de requisições;
+- taxa de erro;
+- uso de memória;
+- tempo médio de resposta.
+
+Esses valores poderão posteriormente ser utilizados na seção de resultados.
+
+---
+
+## Preservação do histórico
+
+Nunca apagar registros anteriores do DEVELOPMENT_REPORT.md.
+
+Sempre acrescentar novas etapas ao final.
+
+Se uma decisão anterior for alterada, registrar uma nova entrada explicando:
+
+- decisão anterior;
+- motivo da alteração;
+- nova decisão.
+
+Não reescrever o histórico para fazê-lo parecer linear.
+
+O histórico real das decisões é relevante para documentar o processo de desenvolvimento.
+
+---
+
+## Relação com Git
+
+Quando uma milestone for considerada concluída:
+
+1. executar validações apropriadas;
+2. atualizar `docs/DEVELOPMENT_REPORT.md`;
+3. garantir que o relatório corresponda ao código realmente existente;
+4. incluir o relatório no mesmo commit ou PR da milestone quando apropriado.
+
+Não registrar como concluída uma funcionalidade que ainda não exista no código.
