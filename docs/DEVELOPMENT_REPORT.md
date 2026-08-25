@@ -941,3 +941,72 @@ endpoint. Faltam API Keys, logs e autenticação.
 Resultados e arquitetura da solução. A resolução dinâmica sem geração de
 código é a característica central do trabalho, e a demonstração de cadastro e
 consumo sem reinício serve diretamente à avaliação.
+
+---
+
+### [2026-08-21] — M7 e M8: API Keys, logs e métricas
+
+**Objetivo**
+
+Proteger o runtime com API Keys e registrar cada execução, permitindo análise
+de uso e desempenho.
+
+**Implementação realizada**
+
+Módulo de API Keys com criação, listagem, revogação e remoção, e módulo de
+logs com consulta e métricas por projeto. O runtime passou a exigir a chave no
+cabeçalho `x-api-key` e a registrar cada execução em `RequestLog`.
+
+**Decisões técnicas**
+
+- API Key guardada como hash SHA-256, não cifrada: diferente da senha de uma
+  conexão externa, a chave nunca precisa ser recuperada, apenas reconhecida. O
+  valor completo é exibido uma única vez, na criação;
+- SHA-256 é suficiente porque a chave tem 32 bytes de entropia de fonte
+  criptográfica — não há espaço de busca a proteger como haveria numa senha
+  escolhida por pessoa;
+- o hash não é exposto nem para leitura administrativa: publicá-lo permitiria
+  testar chaves candidatas fora da aplicação. A listagem devolve apenas o
+  prefixo;
+- a chave trafega em cabeçalho, nunca em query string, que apareceria em
+  histórico de navegador, referer e logs intermediários;
+- chave ausente, inválida, revogada ou expirada resultam em 401; chave válida
+  de outro projeto resulta em 403, por ser questão de permissão e não de
+  identificação;
+- a autenticação acontece depois da resolução do endpoint, e não antes, para
+  que falhas de chave possam ser registradas com o endpoint que se tentou
+  acessar — `RequestLog` exige `endpointId`;
+- por essa mesma exigência do modelo, requisições a endpoints inexistentes são
+  o único caminho sem registro. Não se alterou o schema para contorná-la;
+- o registro guarda apenas identificadores, status, duração, contagem de linhas
+  e um código de erro curto. Mensagens de exceção não são persistidas: podem
+  conter valores vindos da requisição;
+- falha ao gravar o registro não interrompe a requisição já atendida;
+- métricas são agregações sobre os próprios logs, sem contadores mantidos em
+  paralelo, que poderiam divergir do histórico.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte ampliada de 216 para 263 testes
+em 13 arquivos.
+
+Verificação funcional contra o banco meteorológico: chave criada com o token
+exibido apenas na criação e ausente da listagem; runtime devolveu 401 sem
+chave e com chave inválida, e 200 com chave válida (480 registros, 48 ms).
+Seis execuções geraram seis registros com status 200, 400 e 401, duração e
+contagem de linhas. As métricas do projeto retornaram 6 requisições, 2 com
+sucesso, 4 com erro e média de 33 ms. Confirmou-se no banco que a tabela
+`RequestLog` não possui coluna para chave ou credencial e que nenhum registro
+contém valores dessa natureza.
+
+**Resultado**
+
+O runtime passou a ser acessível apenas por chave válida do próprio projeto, e
+cada execução é registrada. Falta apenas a autenticação administrativa da
+plataforma.
+
+**Uso no TCC**
+
+Segurança e resultados. O tratamento diferenciado entre credencial reversível e
+chave de portador sustenta a discussão de segurança; os logs e métricas passam
+a ser a fonte das medições de desempenho.
