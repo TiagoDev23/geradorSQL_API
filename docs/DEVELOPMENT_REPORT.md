@@ -615,3 +615,139 @@ Implementação e arquitetura da solução. A justificativa para introspecção 
 demanda e para o uso de `pg_catalog` em lugar de `information_schema` é
 aproveitável na discussão do acesso a bancos heterogêneos; a extração do serviço
 compartilhado ilustra a separação entre Control Plane e Data Plane.
+
+---
+
+### [2026-08-21] — M3: Base de dados meteorológica
+
+**Objetivo**
+
+Criar o banco PostgreSQL externo de demonstração, com estrutura rica o
+suficiente para validar a introspecção do M2 e volume capaz de crescer para os
+testes de desempenho.
+
+**Implementação realizada**
+
+Estrutura em três schemas — `referencia`, `meteorologia` e `impactos` — com 9
+tabelas, 2 views, 9 chaves estrangeiras, 8 constraints UNIQUE e 24 CHECKs.
+Scripts SQL próprios em `infra/demo-database/`, idempotentes e sem `DROP`,
+acompanhados de um gerador parametrizável de observações.
+
+**Decisões técnicas**
+
+- domínio meteorológico escolhido porque séries temporais crescem por
+  construção: o volume é função de estações × frequência × tempo, e aumentar a
+  carga não exige redesenhar o banco;
+- três schemas em vez de `public`, para exercitar a introspecção em ambiente
+  multi-schema; sete das nove chaves estrangeiras atravessam schemas;
+- `meteorologia.resumos_diarios` com chave primária composta `(estacao_id,
+  data)`, sem coluna sintética, por a identidade da linha ser efetivamente esse
+  par;
+- ausência de índice sobre `(estacao_id, observado_em)`: o UNIQUE já produz o
+  índice equivalente, e duplicá-lo encareceria a inserção na tabela de maior
+  volume;
+- dados sintéticos e determinísticos, declarados como tais na documentação, sem
+  vínculo com qualquer serviço meteorológico;
+- Prisma não é usado neste banco, conforme a separação entre banco interno e
+  bancos externos.
+
+**Funcionamento**
+
+Os scripts são aplicados na ordem numérica pelo container do PostgreSQL demo. A
+carga inicial cobre sete dias de medições horárias para cada estação. Volumes
+maiores são obtidos pelo gerador, que amplia apenas a tabela de observações.
+
+**Validação realizada**
+
+Scripts executados contra o container `gerador-api-demo-db`. Carga resultante:
+27 estados, 81 municípios, 90 estações, 6 tipos de evento, 15.120 observações,
+720 resumos diários, 405 previsões, 81 eventos climáticos e 121 impactos,
+ocupando cerca de 2,9 MB na tabela de observações com seus índices.
+Idempotência confirmada por reexecução, sem duplicação.
+
+As consultas de catálogo do M2 foram executadas diretamente sobre a base e
+retornaram corretamente: os três schemas de domínio, as 9 tabelas e as 2 views
+distinguidas por tipo, a chave primária composta com as colunas na ordem certa,
+a chave estrangeira de `meteorologia.observacoes` para `referencia.estacoes` e
+as duas chaves estrangeiras de `impactos.impactos_climaticos`, uma delas
+apontando para `meteorologia`. Tipos formatados, nulidade e valores padrão
+também foram conferidos.
+
+A validação pela API HTTP do M2 **não foi executada**: a senha do banco demo
+registrada em `.env` não corresponde à que o container recebeu na inicialização
+do volume, impedindo o cadastro de uma conexão funcional. A pendência é de
+ambiente, não de código, e permanece aberta.
+
+Nenhum código do backend foi alterado nesta etapa, portanto build e testes não
+foram reexecutados.
+
+**Resultado**
+
+A plataforma passou a dispor de um banco externo real, com múltiplos schemas e
+relacionamentos entre eles, servindo de cenário para as próximas milestones e
+para os testes de volume.
+
+**Problemas encontrados e soluções**
+
+*Problema.* A primeira execução do seed falhou por incompatibilidade de tipos
+(`date + bigint`) e, ao ser revertida, deixou as sequences avançadas. A carga
+seguinte, que derivava valores de identificadores absolutos, produziu junções
+vazias.
+*Solução.* Correção do cast e substituição da lógica dependente de
+identificadores por ordenação relativa, tornando o seed independente do estado
+das sequences.
+
+**Possível utilização no TCC**
+
+Metodologia e resultados. A base descreve o ambiente experimental, e a
+justificativa do domínio sustenta a discussão sobre disponibilização de grandes
+volumes. Documentação completa em `docs/METEOROLOGY_DATABASE.md`.
+
+---
+
+### [2026-08-21] — M3: encerramento e volume inicial definitivo
+
+**Objetivo**
+
+Fixar o volume da carga inicial do banco demo, encerrando o M3.
+
+**Estrutura criada**
+
+Sem alteração estrutural em relação à entrada anterior: três schemas, 9
+tabelas, 2 views, 9 chaves estrangeiras e chave primária composta em
+`meteorologia.resumos_diarios`.
+
+**Volume inicial**
+
+A janela de observações do seed passou de 7 para 20 dias, elevando a carga
+padrão de 15.120 para **43.200 observações** — 90 estações × 20 dias × 24
+horas, uma medição por hora. Os resumos diários, recalculados a partir dessa
+janela, passaram de 720 para 1.890 registros. As demais tabelas permaneceram
+inalteradas: 27 estados, 81 municípios, 90 estações, 6 tipos de evento, 405
+previsões, 81 eventos climáticos e 121 impactos.
+
+A agregação diária passou a usar `ON CONFLICT DO UPDATE`: com `DO NOTHING`, os
+resumos de dias já existentes não seriam recalculados ao ampliar a janela, e
+ficariam inconsistentes com as observações.
+
+**Validação realizada**
+
+Seed reexecutado sobre a base existente. Conferido que as observações somam
+exatamente 43.200, distribuídas em 480 instantes distintos, com todas as 90
+estações apresentando exatamente 480 registros. Idempotência confirmada por
+nova reexecução, sem variação nas contagens. A tabela de observações ocupa
+cerca de 8,4 MB com os índices.
+
+A introspecção do M2 sobre esta base foi validada manualmente e confirmada:
+schemas, tabelas, views, colunas e tipos, chave primária simples e composta,
+chaves estrangeiras e relacionamentos entre schemas.
+
+O gerador de grandes volumes permanece separado do seed, com padrão pequeno e
+volumes maiores exigindo parâmetro explícito. Nenhuma carga acima do volume de
+desenvolvimento foi executada.
+
+**Resultado**
+
+M3 encerrado. O banco demo passou a ter volume inicial definitivo de 43.200
+observações sintéticas e reproduzíveis, servindo de base para as Saved Queries
+do M4 e para os testes de desempenho previstos.

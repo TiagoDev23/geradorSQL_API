@@ -1404,6 +1404,7 @@ NestJS                  OK
 Docker                  OK
 PostgreSQL platform     OK
 PostgreSQL demo         OK
+Banco demo estruturado  OK
 Prisma                  OK
 Migration inicial       OK
 Health check            OK
@@ -1456,7 +1457,7 @@ Implementação principal pendente:
 [x] DatabaseConnectionsModule
 [x] teste de conexão externa
 [x] introspecção PostgreSQL
-[ ] banco demo com estrutura real
+[x] banco demo com estrutura real
 [ ] SavedQueriesModule
 [ ] QueryParameters
 [ ] validação segura de SELECT

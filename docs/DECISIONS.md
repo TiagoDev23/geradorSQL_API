@@ -209,3 +209,26 @@ servidor garante URLs válidas independentemente do cliente que consome a API.
 
 **Consequência.** A unicidade é garantida pelo índice único em `Project.slug` e
 verificada antes da gravação, resultando em conflito quando o slug já existir.
+
+---
+
+## D15 — Domínio meteorológico como base experimental
+
+**Decisão.** O banco `gerador_api_demo` passa a modelar meteorologia, eventos
+climáticos e impactos climáticos, distribuídos nos schemas `referencia`,
+`meteorologia` e `impactos`. A estrutura e os dados são criados por scripts SQL
+próprios em `infra/demo-database/`, sem Prisma.
+
+**Justificativa.** O trabalho precisa demonstrar a disponibilização de grandes
+volumes de dados. Séries temporais meteorológicas crescem por construção — o
+número de registros é função de estações, frequência de medição e tempo — de
+modo que o volume aumenta sem redesenhar o banco. O domínio também produz
+naturalmente consultas parametrizadas por estação, município e intervalo, que
+é a forma de endpoint que a plataforma publica. O uso de três schemas é
+deliberado: exercita a introspecção em ambiente multi-schema, com chaves
+estrangeiras atravessando schemas.
+
+**Consequência.** Apenas `meteorologia.observacoes` cresce nos testes de
+volume. Os dados são sintéticos e assim declarados na documentação, sem
+vínculo com qualquer serviço meteorológico. A estrutura completa está
+documentada em `docs/METEOROLOGY_DATABASE.md`. Ver [D2](#d2--prisma-restrito-ao-banco-interno).
