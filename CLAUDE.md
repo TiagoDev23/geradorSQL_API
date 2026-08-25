@@ -765,13 +765,13 @@ EndpointsModule ✅
 RuntimeModule ✅
 ApiKeysModule ✅
 RequestLogsModule ✅
+AuthModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
 QueryParametersModule ou lógica subordinada ao SavedQuery
-AuthModule
 ```
 
 Não é obrigatório criar um módulo separado se ele não agregar isolamento real.
@@ -1417,6 +1417,7 @@ Endpoints               OK
 Runtime dinamico        OK
 ApiKeys                 OK
 Logs e metricas         OK
+Auth e ownership        OK
 ```
 
 Rotas existentes importantes:
@@ -1467,6 +1468,10 @@ DELETE /api-keys/:id
 
 GET    /projects/:projectId/logs
 GET    /projects/:projectId/metrics
+
+POST   /auth/signup
+POST   /auth/login
+GET    /auth/me
 ```
 
 Projeto de demonstração existente:
@@ -1500,8 +1505,8 @@ Implementação principal pendente:
 [x] RequestLogs
 [ ] limites/paginação
 [ ] OpenAPI/Swagger
-[ ] AuthModule
-[ ] autorização por proprietário
+[x] AuthModule
+[x] autorização por proprietário
 [ ] frontend
 [ ] dashboard
 [ ] explorer do banco

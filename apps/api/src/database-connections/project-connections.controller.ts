@@ -7,6 +7,8 @@ import {
   Post,
 } from '@nestjs/common';
 
+import { CurrentUserId } from '../auth/current-user.decorator';
+import { OwnershipService } from '../common/ownership/ownership.service';
 import { DatabaseConnectionsService } from './database-connections.service';
 import { CreateDatabaseConnectionDto } from './dto/create-database-connection.dto';
 
@@ -19,18 +21,27 @@ import { CreateDatabaseConnectionDto } from './dto/create-database-connection.dt
 export class ProjectConnectionsController {
   constructor(
     private readonly databaseConnectionsService: DatabaseConnectionsService,
+    private readonly ownership: OwnershipService,
   ) {}
 
   @Post()
-  create(
+  async create(
+    @CurrentUserId() userId: string,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Body() dto: CreateDatabaseConnectionDto,
   ) {
+    await this.ownership.assertProject(projectId, userId);
+
     return this.databaseConnectionsService.create(projectId, dto);
   }
 
   @Get()
-  findAll(@Param('projectId', new ParseUUIDPipe()) projectId: string) {
+  async findAll(
+    @CurrentUserId() userId: string,
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+  ) {
+    await this.ownership.assertProject(projectId, userId);
+
     return this.databaseConnectionsService.findAllByProject(projectId);
   }
 }

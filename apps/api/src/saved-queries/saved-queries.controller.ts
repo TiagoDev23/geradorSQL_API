@@ -11,29 +11,47 @@ import {
   Post,
 } from '@nestjs/common';
 
+import { CurrentUserId } from '../auth/current-user.decorator';
+import { OwnershipService } from '../common/ownership/ownership.service';
 import { ExecuteSavedQueryDto } from './dto/execute-saved-query.dto';
 import { UpdateSavedQueryDto } from './dto/update-saved-query.dto';
 import { SavedQueriesService } from './saved-queries.service';
 
 @Controller('queries')
 export class SavedQueriesController {
-  constructor(private readonly savedQueriesService: SavedQueriesService) {}
+  constructor(
+    private readonly savedQueriesService: SavedQueriesService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+  async findOne(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    await this.ownership.assertSavedQuery(id, userId);
+
     return this.savedQueriesService.findOne(id);
   }
 
   @Patch(':id')
-  update(
+  async update(
+    @CurrentUserId() userId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateSavedQueryDto,
   ) {
+    await this.ownership.assertSavedQuery(id, userId);
+
     return this.savedQueriesService.update(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id', new ParseUUIDPipe()) id: string) {
+  async remove(
+    @CurrentUserId() userId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    await this.ownership.assertSavedQuery(id, userId);
+
     return this.savedQueriesService.remove(id);
   }
 
@@ -43,10 +61,13 @@ export class SavedQueriesController {
    */
   @Post(':id/execute')
   @HttpCode(HttpStatus.OK)
-  execute(
+  async execute(
+    @CurrentUserId() userId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ExecuteSavedQueryDto,
   ) {
+    await this.ownership.assertSavedQuery(id, userId);
+
     return this.savedQueriesService.execute(id, dto);
   }
 }

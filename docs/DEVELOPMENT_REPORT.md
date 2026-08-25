@@ -1010,3 +1010,74 @@ plataforma.
 Segurança e resultados. O tratamento diferenciado entre credencial reversível e
 chave de portador sustenta a discussão de segurança; os logs e métricas passam
 a ser a fonte das medições de desempenho.
+
+---
+
+### [2026-08-21] — M9: Autenticação da plataforma e ownership
+
+**Objetivo**
+
+Autenticar os usuários do painel administrativo e isolar os recursos de cada
+um, sem alterar a autenticação do runtime público.
+
+**Implementação realizada**
+
+Módulo de autenticação com cadastro, login e consulta do usuário corrente,
+usando JWT. Guard global exigindo token em todo o control plane, com exceções
+declaradas nas rotas públicas. Serviço único de verificação de posse, aplicado
+a projetos, conexões, consultas, endpoints, chaves, logs e métricas.
+
+**Decisões técnicas**
+
+- nenhuma migration: `User.passwordHash` e `Project.ownerId` já existiam no
+  schema desde a modelagem inicial;
+- senha protegida com scrypt, disponível no próprio Node: é uma função de
+  derivação feita para senhas, com custo de memória e CPU deliberado. SHA-256,
+  usado nas API Keys, não serviria aqui, porque uma senha escolhida por pessoa
+  tem pouca entropia. A escolha também evita uma dependência nativa;
+- comparação por `timingSafeEqual`, para não vazar pelo tempo de resposta o
+  quanto do hash coincidiu;
+- e-mail inexistente e senha errada produzem a mesma resposta, para não
+  permitir descobrir quais e-mails estão cadastrados;
+- o token carrega apenas o identificador do usuário e trafega somente no
+  cabeçalho `Authorization`, nunca na URL;
+- `JWT_SECRET` é obrigatório na inicialização, sem valor padrão: a aplicação
+  não deve subir com um segredo conhecido;
+- guard global com decorador `@Public` nas exceções, em vez de guard repetido
+  em cada controller. As exceções são autenticação, health e o runtime;
+- **o runtime continua autenticado apenas por API Key.** São dois mecanismos
+  distintos: JWT identifica quem administra a plataforma, API Key identifica
+  quem consome os dados publicados. Exigir JWT no runtime obrigaria o dono do
+  projeto a estar logado para que um terceiro consumisse o endpoint;
+- o dono do projeto passou a vir do token, e não do corpo da requisição,
+  encerrando o `ownerId` provisório descrito na decisão D13;
+- posse verificada por um serviço único, com o dono incluído na própria
+  condição da consulta: "não existe" e "não é seu" se resolvem no mesmo lugar;
+- recurso de outro usuário responde 404, não 403, para não confirmar sua
+  existência.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte ampliada de 263 para 307 testes
+em 16 arquivos.
+
+Verificação funcional com dois usuários: A criou projeto e enxergou apenas o
+próprio; B listou zero projetos e recebeu 404 ao tentar ler, alterar ou
+excluir o projeto de A, além de conexão, introspecção, consulta, execução,
+endpoint, chaves, logs e métricas de outro dono. Confirmada a regressão do
+runtime: responde 200 com `x-api-key` e sem JWT, 401 sem chave, e 401 mesmo
+com JWT válido e sem chave.
+
+**Problemas encontrados e soluções**
+
+Os projetos criados antes deste milestone pertencem ao usuário de
+desenvolvimento, cujo `passwordHash` é um marcador que não corresponde ao
+formato scrypt. Ele não consegue autenticar, e seus projetos ficam
+inacessíveis pelo painel até serem transferidos. Nenhum dado foi alterado: a
+transferência é uma decisão do responsável pelo ambiente.
+
+**Uso no TCC**
+
+Segurança e implementação. A coexistência de dois mecanismos de autenticação
+com propósitos distintos, e a verificação de posse pela própria condição da
+consulta, são diretamente aproveitáveis.

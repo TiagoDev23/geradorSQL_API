@@ -7,6 +7,8 @@ import {
   Post,
 } from '@nestjs/common';
 
+import { CurrentUserId } from '../auth/current-user.decorator';
+import { OwnershipService } from '../common/ownership/ownership.service';
 import { CreateSavedQueryDto } from './dto/create-saved-query.dto';
 import { SavedQueriesService } from './saved-queries.service';
 
@@ -16,18 +18,29 @@ import { SavedQueriesService } from './saved-queries.service';
  */
 @Controller('connections/:connectionId/queries')
 export class ConnectionQueriesController {
-  constructor(private readonly savedQueriesService: SavedQueriesService) {}
+  constructor(
+    private readonly savedQueriesService: SavedQueriesService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   @Post()
-  create(
+  async create(
+    @CurrentUserId() userId: string,
     @Param('connectionId', new ParseUUIDPipe()) connectionId: string,
     @Body() dto: CreateSavedQueryDto,
   ) {
+    await this.ownership.assertConnection(connectionId, userId);
+
     return this.savedQueriesService.create(connectionId, dto);
   }
 
   @Get()
-  findAll(@Param('connectionId', new ParseUUIDPipe()) connectionId: string) {
+  async findAll(
+    @CurrentUserId() userId: string,
+    @Param('connectionId', new ParseUUIDPipe()) connectionId: string,
+  ) {
+    await this.ownership.assertConnection(connectionId, userId);
+
     return this.savedQueriesService.findAllByConnection(connectionId);
   }
 }
