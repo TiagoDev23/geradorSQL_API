@@ -760,12 +760,12 @@ ProjectsModule     ✅
 CryptoModule       ✅
 DatabaseConnectionsModule ✅
 DatabaseIntrospectionModule ✅
+SavedQueriesModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
-SavedQueriesModule
 QueryParametersModule ou lógica subordinada ao SavedQuery
 EndpointsModule
 ApiKeysModule
@@ -1412,6 +1412,7 @@ ProjectsModule          OK
 CryptoService           OK
 DatabaseConnections     OK
 Introspeccao            OK
+SavedQueries            OK
 ```
 
 Rotas existentes importantes:
@@ -1436,6 +1437,13 @@ POST   /connections/:id/test
 GET    /connections/:id/schemas
 GET    /connections/:id/tables
 GET    /connections/:id/tables/:schema/:table
+
+POST   /connections/:connectionId/queries
+GET    /connections/:connectionId/queries
+GET    /queries/:id
+PATCH  /queries/:id
+DELETE /queries/:id
+POST   /queries/:id/execute
 ```
 
 Projeto de demonstração existente:
@@ -1458,10 +1466,10 @@ Implementação principal pendente:
 [x] teste de conexão externa
 [x] introspecção PostgreSQL
 [x] banco demo com estrutura real
-[ ] SavedQueriesModule
-[ ] QueryParameters
-[ ] validação segura de SELECT
-[ ] execução de query de teste
+[x] SavedQueriesModule
+[x] QueryParameters
+[x] validação segura de SELECT
+[x] execução de query de teste
 [ ] EndpointsModule
 [ ] publicação/despublicação
 [ ] ApiKeysModule
