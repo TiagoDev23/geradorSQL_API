@@ -883,3 +883,61 @@ que resolve a rota e executa a consulta, previsto para o M6.
 
 Implementação. A separação entre configuração e execução, com o endpoint como
 dado e não como código, sustenta a discussão sobre o runtime dinâmico.
+
+---
+
+### [2026-08-21] — M6: Runtime dinâmico
+
+**Objetivo**
+
+Transformar os endpoints configurados no M5 em rotas REST executáveis, sem
+gerar código específico para cada um.
+
+**Implementação realizada**
+
+Uma única rota, `GET /runtime/:projectSlug/:version/:endpointSlug`, resolve
+qualquer endpoint publicado em tempo de requisição. A execução da consulta do
+M4 foi extraída para uma função compartilhada, usada tanto pela execução de
+teste quanto pelo runtime.
+
+**Decisões técnicas**
+
+- extração do executor em vez de duplicação: as duas formas de execução
+  precisam das mesmas garantias — somente leitura, parametrização, timeout,
+  encerramento da conexão — e duplicá-las abriria espaço para divergirem;
+- resolução em uma única consulta ao banco interno, trazendo endpoint,
+  consulta, parâmetros e conexão pelas relações;
+- projeto inexistente, versão errada, endpoint inexistente e endpoint não
+  publicado produzem a mesma resposta 404: distinguir os casos revelaria a
+  existência de rotas ainda não publicadas;
+- parâmetros vêm da query string e são convertidos antes de conectar, de modo
+  que entrada inválida não custe uma conexão ao banco do usuário;
+- o limite aplicado é o `maxRows` do endpoint, e não o limite da execução de
+  teste;
+- o serviço não contém SQL nem qualquer conhecimento do domínio publicado; um
+  teste verifica isso lendo o próprio código-fonte.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte ampliada de 198 para 216
+testes em 11 arquivos, cobrindo resolução da rota, ordem posicional dos
+parâmetros, conversão de tipos, endpoint não publicado, encerramento da
+conexão em sucesso e em erro, e ausência de SQL específico no runtime.
+
+Verificação funcional contra o banco meteorológico: endpoint sem parâmetros
+(5 registros, 27 ms), com um parâmetro (480 registros, 59 ms) e com três
+parâmetros de período (24 registros, 28 ms). Registrou-se também o cenário
+central do trabalho: uma consulta e um endpoint foram cadastrados durante a
+execução da aplicação, a rota respondeu 404 antes da publicação e devolveu
+dados imediatamente após, sem reinício nem geração de arquivo.
+
+**Resultado**
+
+O fluxo do MVP passou a funcionar de ponta a ponta, da conexão ao consumo do
+endpoint. Faltam API Keys, logs e autenticação.
+
+**Uso no TCC**
+
+Resultados e arquitetura da solução. A resolução dinâmica sem geração de
+código é a característica central do trabalho, e a demonstração de cadastro e
+consumo sem reinício serve diretamente à avaliação.

@@ -9,6 +9,7 @@ import { DatabaseIntrospectionModule } from './database-introspection/database-i
 import { EndpointsModule } from './endpoints/endpoints.module';
 import { HealthModule } from './health/health.module';
 import { ProjectsModule } from './projects/projects.module';
+import { RuntimeModule } from './runtime/runtime.module';
 import { SavedQueriesModule } from './saved-queries/saved-queries.module';
 import { CryptoModule } from './common/crypto/crypto.module';
 
@@ -26,6 +27,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     DatabaseIntrospectionModule,
     SavedQueriesModule,
     EndpointsModule,
+    RuntimeModule,
   ],
 
   controllers: [AppController],
