@@ -830,3 +830,56 @@ Implementação e segurança. A camada de validação de SQL e a conversão estr
 de parâmetros sustentam a discussão sobre execução controlada de consultas
 fornecidas pelo usuário; as medições de duração inauguram a comparação de
 desempenho entre consultas simples e agregadas.
+
+---
+
+### [2026-08-21] — M5: Gerenciamento de endpoints
+
+**Objetivo**
+
+Permitir configurar e publicar consultas salvas como endpoints, preparando a
+rota que o runtime do M6 resolverá.
+
+**Implementação realizada**
+
+Módulo de endpoints com CRUD e controle de publicação, em sete rotas. O
+endpoint referencia a consulta e não guarda cópia do SQL. As respostas trazem
+a rota futura derivada de projeto, versão e slug, além de um resumo da consulta
+com seus parâmetros.
+
+**Decisões técnicas**
+
+- nenhuma alteração de schema: o modelo `Endpoint` já previa slug, versão,
+  `isPublished`, `publishedAt`, `maxRows` e a unicidade da rota;
+- formato de versão definido como `v` seguido de inteiro, registrado em D16;
+- slug informado precisa já estar normalizado; quando omitido, é derivado do
+  nome. Validar em vez de normalizar silenciosamente evita que o usuário
+  receba uma URL diferente da que pediu;
+- a consulta precisa pertencer ao mesmo projeto do endpoint, vínculo verificado
+  indiretamente por `SavedQuery → DatabaseConnection → Project`;
+- o SQL da consulta é revalidado na criação e na publicação, antes de expor a
+  rota;
+- remover endpoint publicado é recusado: além de derrubar uma rota em uso, a
+  cascata definida no schema apagaria o histórico de requisições. Despublicar
+  primeiro torna a intenção explícita.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte ampliada de 144 para 198 testes
+em 10 arquivos. Verificação funcional com três endpoints de demonstração sobre
+as consultas do M4, um deles publicado. Conferido no banco interno que a tabela
+`Endpoint` não possui coluna de SQL e que o vínculo é por `savedQueryId`.
+Confirmado que a rota `/runtime/...` ainda responde 404, por não existir neste
+milestone. Casos de erro conferidos: slug e versão inválidos, rota duplicada,
+mesmo slug em outra versão aceito, consulta de outro projeto, campo `method`
+recusado e remoção de endpoint publicado.
+
+**Resultado**
+
+A plataforma passou a configurar e publicar endpoints. Falta apenas o runtime
+que resolve a rota e executa a consulta, previsto para o M6.
+
+**Uso no TCC**
+
+Implementação. A separação entre configuração e execução, com o endpoint como
+dado e não como código, sustenta a discussão sobre o runtime dinâmico.

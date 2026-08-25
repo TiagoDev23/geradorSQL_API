@@ -761,13 +761,13 @@ CryptoModule       ✅
 DatabaseConnectionsModule ✅
 DatabaseIntrospectionModule ✅
 SavedQueriesModule ✅
+EndpointsModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
 QueryParametersModule ou lógica subordinada ao SavedQuery
-EndpointsModule
 ApiKeysModule
 RuntimeModule
 RequestLogsModule
@@ -1413,6 +1413,7 @@ CryptoService           OK
 DatabaseConnections     OK
 Introspeccao            OK
 SavedQueries            OK
+Endpoints               OK
 ```
 
 Rotas existentes importantes:
@@ -1444,6 +1445,14 @@ GET    /queries/:id
 PATCH  /queries/:id
 DELETE /queries/:id
 POST   /queries/:id/execute
+
+POST   /projects/:projectId/endpoints
+GET    /projects/:projectId/endpoints
+GET    /endpoints/:id
+PATCH  /endpoints/:id
+DELETE /endpoints/:id
+POST   /endpoints/:id/publish
+POST   /endpoints/:id/unpublish
 ```
 
 Projeto de demonstração existente:
@@ -1470,8 +1479,8 @@ Implementação principal pendente:
 [x] QueryParameters
 [x] validação segura de SELECT
 [x] execução de query de teste
-[ ] EndpointsModule
-[ ] publicação/despublicação
+[x] EndpointsModule
+[x] publicação/despublicação
 [ ] ApiKeysModule
 [ ] RuntimeModule
 [ ] RequestLogs

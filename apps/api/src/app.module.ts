@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { DatabaseConnectionsModule } from './database-connections/database-connections.module';
 import { DatabaseIntrospectionModule } from './database-introspection/database-introspection.module';
+import { EndpointsModule } from './endpoints/endpoints.module';
 import { HealthModule } from './health/health.module';
 import { ProjectsModule } from './projects/projects.module';
 import { SavedQueriesModule } from './saved-queries/saved-queries.module';
@@ -24,6 +25,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     DatabaseConnectionsModule,
     DatabaseIntrospectionModule,
     SavedQueriesModule,
+    EndpointsModule,
   ],
 
   controllers: [AppController],
