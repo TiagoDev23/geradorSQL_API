@@ -1,10 +1,4 @@
-import {
-  IsOptional,
-  IsString,
-  IsUUID,
-  Length,
-  MaxLength,
-} from 'class-validator';
+import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -20,7 +14,4 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(500)
   description?: string;
-
-  @IsUUID()
-  ownerId!: string;
 }

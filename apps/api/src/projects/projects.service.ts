@@ -12,20 +12,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateProjectDto) {
-    const owner = await this.prisma.user.findUnique({
-      where: {
-        id: dto.ownerId,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!owner) {
-      throw new NotFoundException('Usuário proprietário não encontrado.');
-    }
-
+  async create(ownerId: string, dto: CreateProjectDto) {
     const slug = this.normalizeSlug(dto.slug ?? dto.name);
 
     await this.ensureSlugAvailable(slug);
@@ -35,7 +22,7 @@ export class ProjectsService {
         name: dto.name.trim(),
         slug,
         description: dto.description?.trim(),
-        ownerId: dto.ownerId,
+        ownerId,
       },
       select: {
         id: true,
@@ -49,13 +36,12 @@ export class ProjectsService {
     });
   }
 
-  async findAll(ownerId?: string) {
+  /** Lista apenas os projetos do usuário autenticado. */
+  async findAll(ownerId: string) {
     return this.prisma.project.findMany({
-      where: ownerId
-        ? {
-            ownerId,
-          }
-        : undefined,
+      where: {
+        ownerId,
+      },
 
       orderBy: {
         createdAt: 'desc',
@@ -167,13 +153,8 @@ export class ProjectsService {
       },
     });
 
-    if (
-      existingProject &&
-      existingProject.id !== ignoredProjectId
-    ) {
-      throw new ConflictException(
-        `Já existe um projeto com o slug "${slug}".`,
-      );
+    if (existingProject && existingProject.id !== ignoredProjectId) {
+      throw new ConflictException(`Já existe um projeto com o slug "${slug}".`);
     }
   }
 }

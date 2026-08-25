@@ -1,5 +1,7 @@
 import { Controller, Get, Headers, Param, Query } from '@nestjs/common';
 
+import { Public } from '../auth/public.decorator';
+
 import { RuntimeService } from './runtime.service';
 
 /**
@@ -9,6 +11,9 @@ import { RuntimeService } from './runtime.service';
  * A API Key trafega em cabeçalho, nunca na query string: URLs aparecem
  * em histórico de navegador, referer e logs de servidores intermediários.
  */
+// @Public dispensa o JWT do control plane: o runtime é autenticado
+// pela API Key, verificada dentro do serviço.
+@Public()
 @Controller('runtime')
 export class RuntimeController {
   constructor(private readonly runtimeService: RuntimeService) {}

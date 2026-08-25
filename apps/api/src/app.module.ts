@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { OwnershipModule } from './common/ownership/ownership.module';
 import { RequestLogsModule } from './request-logs/request-logs.module';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { DatabaseConnectionsModule } from './database-connections/database-connections.module';
@@ -22,6 +26,8 @@ import { CryptoModule } from './common/crypto/crypto.module';
     }),
 
     PrismaModule,
+    AuthModule,
+    OwnershipModule,
     HealthModule,
     ProjectsModule,
     CryptoModule,
@@ -35,6 +41,13 @@ import { CryptoModule } from './common/crypto/crypto.module';
   ],
 
   controllers: [AppController],
-  providers: [AppService],
+
+  providers: [
+    AppService,
+
+    // Guard global: tudo exige JWT, salvo o que estiver marcado com
+    // @Public — auth, health e o runtime.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}

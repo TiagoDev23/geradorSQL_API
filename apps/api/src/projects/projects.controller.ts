@@ -7,9 +7,10 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
 } from '@nestjs/common';
 
+import { CurrentUserId } from '../auth/current-user.decorator';
+import { OwnershipService } from '../common/ownership/ownership.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
@@ -18,37 +19,48 @@ import { ProjectsService } from './projects.service';
 export class ProjectsController {
   constructor(
     private readonly projectsService: ProjectsService,
+    private readonly ownership: OwnershipService,
   ) {}
 
   @Post()
-  create(@Body() dto: CreateProjectDto) {
-    return this.projectsService.create(dto);
+  create(@CurrentUserId() userId: string, @Body() dto: CreateProjectDto) {
+    // O dono vem do token, nunca do corpo da requisição.
+    return this.projectsService.create(userId, dto);
   }
 
   @Get()
-  findAll(@Query('ownerId') ownerId?: string) {
-    return this.projectsService.findAll(ownerId);
+  findAll(@CurrentUserId() userId: string) {
+    return this.projectsService.findAll(userId);
   }
 
   @Get(':id')
-  findOne(
+  async findOne(
+    @CurrentUserId() userId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
+    await this.ownership.assertProject(id, userId);
+
     return this.projectsService.findOne(id);
   }
 
   @Patch(':id')
-  update(
+  async update(
+    @CurrentUserId() userId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateProjectDto,
   ) {
+    await this.ownership.assertProject(id, userId);
+
     return this.projectsService.update(id, dto);
   }
 
   @Delete(':id')
-  remove(
+  async remove(
+    @CurrentUserId() userId: string,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
+    await this.ownership.assertProject(id, userId);
+
     return this.projectsService.remove(id);
   }
 }
