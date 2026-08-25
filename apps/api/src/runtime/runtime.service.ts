@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { ApiKeysService } from '../api-keys/api-keys.service';
 import { ExternalDatabaseService } from '../database-connections/external-database.service';
 import { PrismaService } from '../database/prisma/prisma.service';
+import {
+  RequestLogsService,
+  toErrorCode,
+} from '../request-logs/request-logs.service';
 import { executeQuery } from '../saved-queries/query-execution';
 
 /**
@@ -17,14 +22,19 @@ export class RuntimeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly externalDatabase: ExternalDatabaseService,
+    private readonly apiKeys: ApiKeysService,
+    private readonly requestLogs: RequestLogsService,
   ) {}
 
   async execute(
     projectSlug: string,
     version: string,
     endpointSlug: string,
+    rawApiKey: string | undefined,
     received: Record<string, unknown>,
   ) {
+    const startedAt = Date.now();
+
     // Uma única consulta ao banco interno traz endpoint, consulta,
     // parâmetros e conexão. Os valores da URL viajam como parâmetros do
     // Prisma, nunca concatenados.
@@ -37,6 +47,8 @@ export class RuntimeService {
       },
 
       select: {
+        id: true,
+        projectId: true,
         maxRows: true,
         savedQuery: {
           select: {
@@ -60,16 +72,54 @@ export class RuntimeService {
     // Projeto ausente, versão errada, endpoint inexistente e endpoint
     // não publicado resultam na mesma resposta: distinguir os casos
     // revelaria a existência de rotas ainda não publicadas.
+    //
+    // Este é o único caminho sem registro: RequestLog exige um
+    // endpointId, que aqui não existe.
     if (!endpoint) {
       throw new NotFoundException('Endpoint não encontrado.');
     }
 
-    return executeQuery(this.externalDatabase, {
-      sql: endpoint.savedQuery.sql,
-      connectionId: endpoint.savedQuery.connectionId,
-      parameters: endpoint.savedQuery.parameters,
-      received,
-      maxRows: endpoint.maxRows,
-    });
+    let apiKeyId: string | undefined;
+
+    try {
+      // A autenticação vem depois da resolução justamente para que a
+      // falha possa ser registrada com o endpoint que se tentou acessar.
+      const apiKey = await this.apiKeys.authenticate(
+        rawApiKey,
+        endpoint.projectId,
+      );
+
+      apiKeyId = apiKey.id;
+
+      const result = await executeQuery(this.externalDatabase, {
+        sql: endpoint.savedQuery.sql,
+        connectionId: endpoint.savedQuery.connectionId,
+        parameters: endpoint.savedQuery.parameters,
+        received,
+        maxRows: endpoint.maxRows,
+      });
+
+      await this.requestLogs.record({
+        endpointId: endpoint.id,
+        apiKeyId,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+        rowCount: result.rowCount,
+      });
+
+      return result;
+    } catch (error) {
+      const { statusCode, errorCode } = toErrorCode(error);
+
+      await this.requestLogs.record({
+        endpointId: endpoint.id,
+        apiKeyId,
+        statusCode,
+        durationMs: Date.now() - startedAt,
+        errorCode,
+      });
+
+      throw error;
+    }
   }
 }

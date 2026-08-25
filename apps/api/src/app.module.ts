@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { RequestLogsModule } from './request-logs/request-logs.module';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { DatabaseConnectionsModule } from './database-connections/database-connections.module';
 import { DatabaseIntrospectionModule } from './database-introspection/database-introspection.module';
@@ -28,6 +30,8 @@ import { CryptoModule } from './common/crypto/crypto.module';
     SavedQueriesModule,
     EndpointsModule,
     RuntimeModule,
+    ApiKeysModule,
+    RequestLogsModule,
   ],
 
   controllers: [AppController],

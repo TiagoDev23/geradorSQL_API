@@ -763,14 +763,14 @@ DatabaseIntrospectionModule ✅
 SavedQueriesModule ✅
 EndpointsModule ✅
 RuntimeModule ✅
+ApiKeysModule ✅
+RequestLogsModule ✅
 ```
 
 Criar gradualmente:
 
 ```text
 QueryParametersModule ou lógica subordinada ao SavedQuery
-ApiKeysModule
-RequestLogsModule
 AuthModule
 ```
 
@@ -1415,6 +1415,8 @@ Introspeccao            OK
 SavedQueries            OK
 Endpoints               OK
 Runtime dinamico        OK
+ApiKeys                 OK
+Logs e metricas         OK
 ```
 
 Rotas existentes importantes:
@@ -1455,7 +1457,16 @@ DELETE /endpoints/:id
 POST   /endpoints/:id/publish
 POST   /endpoints/:id/unpublish
 
-GET    /runtime/:projectSlug/:version/:endpointSlug
+GET    /runtime/:projectSlug/:version/:endpointSlug   (exige x-api-key)
+
+POST   /projects/:projectId/api-keys
+GET    /projects/:projectId/api-keys
+GET    /api-keys/:id
+POST   /api-keys/:id/revoke
+DELETE /api-keys/:id
+
+GET    /projects/:projectId/logs
+GET    /projects/:projectId/metrics
 ```
 
 Projeto de demonstração existente:
@@ -1484,9 +1495,9 @@ Implementação principal pendente:
 [x] execução de query de teste
 [x] EndpointsModule
 [x] publicação/despublicação
-[ ] ApiKeysModule
+[x] ApiKeysModule
 [x] RuntimeModule
-[ ] RequestLogs
+[x] RequestLogs
 [ ] limites/paginação
 [ ] OpenAPI/Swagger
 [ ] AuthModule
