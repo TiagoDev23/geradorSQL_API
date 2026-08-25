@@ -232,3 +232,19 @@ estrangeiras atravessando schemas.
 volume. Os dados são sintéticos e assim declarados na documentação, sem
 vínculo com qualquer serviço meteorológico. A estrutura completa está
 documentada em `docs/METEOROLOGY_DATABASE.md`. Ver [D2](#d2--prisma-restrito-ao-banco-interno).
+
+---
+
+## D16 — Formato da versão de endpoint
+
+**Decisão.** `Endpoint.version` aceita a letra `v` seguida de um número inteiro
+positivo: `v1`, `v2`, `v10`. O padrão é `v1`.
+
+**Justificativa.** A versão compõe a URL pública e precisa de um formato
+previsível. Versionamento semântico completo (`v1.2.3`) não agrega ao MVP:
+endpoints publicam consultas de leitura, e a única quebra relevante é a
+mudança de contrato, que justifica uma nova versão inteira.
+
+**Consequência.** A unicidade da rota é garantida pelo índice
+`@@unique([projectId, version, slug])`. Publicar uma variação incompatível de
+um endpoint significa criar `v2` com o mesmo slug, mantendo `v1` no ar.
