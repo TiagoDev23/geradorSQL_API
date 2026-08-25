@@ -17,10 +17,7 @@ import {
   ExecuteSavedQueryDto,
 } from './dto/execute-saved-query.dto';
 import { UpdateSavedQueryDto } from './dto/update-saved-query.dto';
-import {
-  buildParameterValues,
-  ParameterDefinition,
-} from './parameter-coercion';
+import { executeQuery } from './query-execution';
 import { assertReadOnlySelect, extractPlaceholders } from './sql-validator';
 
 const PARAMETER_FIELDS = {
@@ -229,64 +226,24 @@ export class SavedQueriesService {
   async execute(id: string, dto: ExecuteSavedQueryDto) {
     const savedQuery = await this.findOne(id);
 
-    // Revalidação no momento da execução: o SQL foi validado ao ser
-    // gravado, mas as regras podem ter mudado desde então.
-    assertReadOnlySelect(savedQuery.sql);
-
-    const definitions: ParameterDefinition[] = savedQuery.parameters.map(
-      (parameter) => ({
-        name: parameter.name,
-        type: parameter.type,
-        position: parameter.position,
-        required: parameter.required,
-        defaultValue: parameter.defaultValue,
-      }),
-    );
-
-    const values = buildParameterValues(definitions, dto.parameters ?? {});
-
     const maxRows = Math.min(
       dto.maxRows ?? EXECUTION_DEFAULT_MAX_ROWS,
       EXECUTION_MAX_ROWS_LIMIT,
     );
 
-    const startedAt = Date.now();
-
-    const result = await this.externalDatabase.run(
-      savedQuery.connectionId,
-      async (client) => {
-        return client.query({
-          text: this.wrapWithLimit(savedQuery.sql, maxRows),
-          values,
-        });
-      },
-    );
-
-    return {
-      // dataTypeID é o OID do tipo no PostgreSQL; permite ao cliente
-      // distinguir colunas sem inspecionar os valores.
-      columns: (result.fields ?? []).map((field) => ({
-        name: field.name,
-        dataTypeId: field.dataTypeID,
+    return executeQuery(this.externalDatabase, {
+      sql: savedQuery.sql,
+      connectionId: savedQuery.connectionId,
+      parameters: savedQuery.parameters.map((parameter) => ({
+        name: parameter.name,
+        type: parameter.type,
+        position: parameter.position,
+        required: parameter.required,
+        defaultValue: parameter.defaultValue,
       })),
-      rows: result.rows,
-      rowCount: result.rows.length,
+      received: dto.parameters ?? {},
       maxRows,
-      // Sinaliza que o corte pode ter escondido linhas adicionais.
-      truncated: result.rows.length >= maxRows,
-      durationMs: Date.now() - startedAt,
-    };
-  }
-
-  /**
-   * Aplica o limite envolvendo a consulta original, sem reescrevê-la.
-   * O valor é um inteiro controlado pela aplicação, nunca texto vindo
-   * do cliente.
-   */
-  private wrapWithLimit(sql: string, maxRows: number): string {
-    const withoutTrailing = sql.trim().replace(/;\s*$/, '');
-
-    return `SELECT * FROM (\n${withoutTrailing}\n) AS consulta_limitada LIMIT ${maxRows}`;
+    });
   }
 
   /**
