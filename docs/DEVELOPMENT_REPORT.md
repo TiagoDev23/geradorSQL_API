@@ -751,3 +751,82 @@ desenvolvimento foi executada.
 M3 encerrado. O banco demo passou a ter volume inicial definitivo de 43.200
 observações sintéticas e reproduzíveis, servindo de base para as Saved Queries
 do M4 e para os testes de desempenho previstos.
+
+---
+
+### [2026-08-21] — M4: Consultas salvas
+
+**Objetivo**
+
+Permitir que o usuário grave consultas SQL vinculadas a uma conexão, declare
+seus parâmetros e execute a consulta de teste com resultado em JSON.
+
+**Implementação realizada**
+
+Módulo de consultas salvas com CRUD e execução, exposto em seis rotas. Os
+parâmetros são tratados como coleção subordinada à consulta: acompanham a
+criação e são substituídos integralmente na atualização, sem módulo próprio.
+Foram criadas duas peças independentes do NestJS: uma camada de validação de
+SQL e um conversor de parâmetros.
+
+**Decisões técnicas**
+
+- a validação de SQL não inspeciona o início da string, que é contornável. O
+  texto passa por uma normalização que substitui comentários, literais,
+  blocos com dollar quoting e identificadores entre aspas por espaços; apenas
+  o resíduo é analisado. Assim, uma palavra proibida dentro de um comentário
+  não bloqueia indevidamente, e um comando escondido após um comentário não
+  escapa da análise;
+- além dos comandos de escrita e DDL, são bloqueados controle de transação,
+  manipulação de sessão, `SELECT ... INTO` e funções que alcançam o sistema de
+  arquivos ou prendem a conexão, como `pg_read_file` e `pg_sleep`;
+- múltiplas instruções são recusadas, aceitando-se apenas um ponto e vírgula
+  final;
+- a conversão de parâmetros é estrita: valor incompatível com o tipo declarado
+  gera erro, nunca coerção silenciosa. Aceitar "abc" como zero produziria um
+  resultado plausível e errado;
+- o SQL e os parâmetros são validados como par: cada marcador `$n` precisa de
+  um parâmetro na posição correspondente, e vice-versa, o que impede gravar
+  uma consulta impossível de executar;
+- o limite de linhas é aplicado envolvendo a consulta original em uma
+  subconsulta, sem reescrevê-la, com valor inteiro controlado pela aplicação;
+- o SQL é revalidado no momento da execução, e não apenas ao ser gravado,
+  porque as regras de validação podem mudar depois da gravação;
+- o acesso ao banco externo reutiliza o serviço compartilhado criado no M2,
+  mantendo decifragem da credencial, timeouts e encerramento do cliente em um
+  único lugar.
+
+**Funcionamento**
+
+Usuário escolhe a conexão → grava a consulta com marcadores posicionais e
+declara os parâmetros → ao executar, os valores recebidos são convertidos para
+os tipos declarados, ordenados por posição e enviados ao driver separados do
+texto da consulta → o resultado volta com colunas, linhas, contagem e duração.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte automatizada ampliada de 36
+para 144 testes em 8 arquivos, cobrindo a validação de SQL, a conversão de
+cada tipo de parâmetro, o CRUD, a execução e o encerramento do cliente em
+sucesso, em falha de consulta e em falha de conexão.
+
+Verificação funcional contra o banco meteorológico do M3, com quatro consultas
+de demonstração: sem parâmetros, por estação, por estação e período, e
+agregada por estação. A consulta por período devolveu 24 registros horários em
+22 ms; a agregada devolveu médias por estação em 19 ms. Os casos de erro
+responderam conforme esperado: comando de escrita e múltiplas instruções
+recusados na gravação, parâmetro obrigatório ausente e tipo inválido recusados
+antes de abrir conexão, e 404 para consulta ou conexão inexistente.
+
+**Resultado**
+
+A plataforma passou a permitir gravar e executar consultas parametrizadas sobre
+bancos externos, restritas a leitura, com os valores sempre separados do texto
+SQL. É a última peça antes da publicação de endpoints.
+
+**Uso no TCC**
+
+Implementação e segurança. A camada de validação de SQL e a conversão estrita
+de parâmetros sustentam a discussão sobre execução controlada de consultas
+fornecidas pelo usuário; as medições de duração inauguram a comparação de
+desempenho entre consultas simples e agregadas.

@@ -8,6 +8,7 @@ import { DatabaseConnectionsModule } from './database-connections/database-conne
 import { DatabaseIntrospectionModule } from './database-introspection/database-introspection.module';
 import { HealthModule } from './health/health.module';
 import { ProjectsModule } from './projects/projects.module';
+import { SavedQueriesModule } from './saved-queries/saved-queries.module';
 import { CryptoModule } from './common/crypto/crypto.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     CryptoModule,
     DatabaseConnectionsModule,
     DatabaseIntrospectionModule,
+    SavedQueriesModule,
   ],
 
   controllers: [AppController],
