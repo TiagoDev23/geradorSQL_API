@@ -1244,3 +1244,11 @@ padrão recomendado pelo React.
 Implementação e resultados. Demonstra o fluxo completo da ferramenta e fornece
 as telas para a apresentação; a validação manual registra tempos e volumes
 reais medidos pela interface.
+
+---
+
+### 2026-08-26 — Ajuste: porta host do PostgreSQL demo
+
+A porta host do banco demo passou de 5433 para 5435, porque a 5433 também está
+ocupada no ambiente de desenvolvimento atual; o mapeamento é `5435:5432`. Os
+registros anteriores foram preservados por descreverem a decisão vigente à época.

@@ -211,10 +211,10 @@ com healthcheck e volume nomeado:
 | Container | Porta host | Porta interna | Papel |
 |---|---|---|---|
 | `gerador-api-platform-db` | 5434 | 5432 | banco interno da plataforma |
-| `gerador-api-demo-db` | 5433 | 5432 | banco externo de demonstração |
+| `gerador-api-demo-db` | 5435 | 5432 | banco externo de demonstração |
 
 A porta 5432 do host está ocupada por uma instalação de PostgreSQL nativa no
-Windows, motivo pelo qual os containers são expostos em 5433 e 5434.
+Windows, motivo pelo qual os containers são expostos em 5434 e 5435.
 
 O banco demo representa exclusivamente um banco de usuário: é acessado pela
 aplicação através de `pg`, jamais por Prisma.
