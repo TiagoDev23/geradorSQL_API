@@ -1,26 +1,117 @@
 @import "tailwindcss";
 
+/*
+ * Tokens da interface.
+ *
+ * As cores existem apenas como variáveis: um tema escuro futuro
+ * redefine este bloco sem tocar em nenhum componente.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface-page: #f7f8fa;
+  --surface: #ffffff;
+  --surface-muted: #f2f4f7;
+
+  --text: #111827;
+  --text-muted: #667085;
+  --text-subtle: #98a2b3;
+
+  --border: #e5e7eb;
+  --border-strong: #d0d5dd;
+
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: #eef2ff;
+  --accent: #6366f1;
+
+  --success: #067647;
+  --success-soft: #ecfdf3;
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  --warning: #b54708;
+  --warning-soft: #fffaeb;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-page: var(--surface-page);
+  --color-surface: var(--surface);
+  --color-muted: var(--surface-muted);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink: var(--text);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-subtle: var(--text-subtle);
+
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface-page);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visível e uniforme, sem depender de cada componente. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Barras de rolagem discretas nas áreas densas (tabelas, editor). */
+.scroll-slim::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Editor SQL: o CodeMirror recebe a tipografia e a moldura da aplicação. */
+.sql-editor .cm-editor {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  background: var(--surface);
+}
+
+.sql-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.sql-editor .cm-gutters {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  color: var(--text-subtle);
+}
+
+.sql-editor .cm-activeLine,
+.sql-editor .cm-activeLineGutter {
+  background: var(--surface-muted);
+}
+
+.sql-editor .cm-content {
+  padding: 12px 0;
 }

@@ -1146,3 +1146,101 @@ gerada a partir da própria configuração.
 
 Implementação e resultados. A documentação derivada da configuração, sem código
 por endpoint, reforça o argumento central do runtime dinâmico.
+
+---
+
+### 2026-08-26 — M11: interface web da plataforma
+
+**Objetivo**
+
+Transformar a ferramenta, até aqui composta apenas por backend e
+infraestrutura, em um produto utilizável por meio de uma interface web que
+consuma as rotas já existentes, sem replicar regra de negócio.
+
+**Implementação realizada**
+
+Painel em Next.js (App Router) sobre a API NestJS, cobrindo todo o fluxo do
+MVP: cadastro e login, lista de projetos, visão geral do projeto, conexões com
+teste e exploração da estrutura do banco, editor de consultas com parâmetros e
+execução, criação e publicação de endpoints, API Keys, logs, métricas e
+visualização do OpenAPI.
+
+Um único módulo concentra o acesso à API — URL base, cabeçalho de autenticação
+e tradução de erro —, e cada página busca os próprios dados. Nenhum campo
+sensível é exibido: senha de banco, hash de chave e credenciais não existem nas
+respostas e, portanto, não existem na interface.
+
+**Decisões técnicas**
+
+- **CodeMirror 6 em vez do Monaco.** O invólucro oficial do Monaco carrega o
+  editor de uma CDN por padrão, o que introduziria dependência externa em tempo
+  de execução; empacotá-lo exigiria configuração de bundler desproporcional ao
+  milestone. O CodeMirror entrega realce de SQL e numeração de linhas com duas
+  dependências que se empacotam normalmente. Registra-se a mudança em relação
+  ao planejamento original, que previa Monaco.
+- **Sem biblioteca de estado ou de cache de dados.** O estado global se limita
+  à sessão; o restante pertence a cada página. Um utilitário pequeno cobre o
+  carregamento de recurso.
+- **JWT no `localStorage`.** O backend devolve o token no corpo e o espera no
+  cabeçalho `Authorization`, sem cookie nem refresh token; essa é a forma
+  compatível com a arquitetura atual. Resposta 401 descarta a sessão e leva ao
+  login.
+- **Validação de SQL permanece exclusivamente no backend.** Duplicá-la no
+  navegador abriria espaço para as duas divergirem.
+
+**Alteração no backend**
+
+Uma única mudança: habilitar CORS em `main.ts`. O painel roda em outra origem
+(3000) e sem isso o navegador bloquearia todas as chamadas. As origens são
+configuráveis por `CORS_ORIGINS`. Nenhuma rota, contrato ou migration foi
+alterada.
+
+**Funcionamento**
+
+Usuário cria conta → cria projeto → cadastra e testa a conexão PostgreSQL →
+explora schemas e tabelas → escreve o SELECT e declara os parâmetros → executa
+a consulta e vê o resultado → publica a consulta como endpoint → gera uma API
+Key → consome `GET /runtime/...` com `x-api-key` → acompanha logs, métricas e
+OpenAPI.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros nos dois aplicativos. Backend mantém
+332 testes em 17 arquivos; o painel recebeu 25 testes em 6 arquivos, cobrindo o
+cliente HTTP, a proteção de rota, a listagem e criação de projetos, o login e a
+exibição única da API Key.
+
+Validação manual ponta a ponta contra o banco demo meteorológico, pela própria
+interface: conta criada; projeto "Clima M11"; conexão testada, respondendo
+PostgreSQL 17.11 em 22 ms; introspecção listando os quatro schemas e as colunas,
+chave primária e relacionamento de `meteorologia.observacoes`; consulta com dois
+parâmetros (`estacaoId` INTEGER, `desde` DATETIME) executada em 41 ms,
+retornando 100 registros com o aviso de corte pelo limite; endpoint publicado em
+`/runtime/clima-m11/v1/observacoes-por-estacao`; API Key exibida uma única vez e
+inacessível após o fechamento do diálogo; runtime respondendo 401 sem chave e
+200 com chave, 137 registros em 24 ms; logs registrando as duas requisições e
+métricas apurando 2 no total, 1 sucesso, 1 falha e 28 ms de média; especificação
+OpenAPI exibida em resumo e em JSON. Revogada a chave, o runtime passou a
+responder 401 imediatamente. Sessão encerrada e token forjado levaram ao login,
+sem exibir conteúdo autenticado.
+
+**Resultado**
+
+O fluxo completo do MVP — da conexão com o PostgreSQL à requisição autenticada
+no endpoint publicado — passou a ser executável inteiramente pela interface
+web.
+
+**Problemas encontrados e soluções**
+
+As regras atuais do ESLint para React proíbem `setState` síncrono dentro de
+efeito. Os formulários que sincronizavam estado com propriedades foram
+reescritos para existir apenas enquanto o diálogo está aberto, de modo que
+reabrir recomeça do registro atual sem efeito de sincronização, e o utilitário
+de carregamento passou a ajustar o estado durante a renderização, conforme o
+padrão recomendado pelo React.
+
+**Uso no TCC**
+
+Implementação e resultados. Demonstra o fluxo completo da ferramenta e fornece
+as telas para a apresentação; a validação manual registra tempos e volumes
+reais medidos pela interface.
