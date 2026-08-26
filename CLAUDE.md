@@ -371,7 +371,7 @@ Host:
 Porta externa:
 
 ```text
-5433
+5435
 ```
 
 Porta interna Docker:
@@ -1788,7 +1788,7 @@ Implemente:
 - tratamento seguro de erros;
 - testes unitários relevantes.
 
-Use o PostgreSQL demo na porta 5433 apenas como cenário de teste.
+Use o PostgreSQL demo na porta 5435 apenas como cenário de teste.
 
 Ao final:
 - execute build;

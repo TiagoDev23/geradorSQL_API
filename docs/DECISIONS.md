@@ -170,10 +170,10 @@ migration, o que é adequado por se tratar de mudança de escopo.
 
 ---
 
-## D12 — Portas 5433 e 5434 para os containers PostgreSQL
+## D12 — Portas 5434 e 5435 para os containers PostgreSQL
 
 **Decisão.** O banco da plataforma é exposto na porta 5434 do host e o banco demo
-na 5433, ambos mapeados para 5432 dentro do container.
+na 5435, ambos mapeados para 5432 dentro do container.
 
 **Justificativa.** A porta 5432 do host está ocupada por uma instalação nativa de
 PostgreSQL no Windows.
