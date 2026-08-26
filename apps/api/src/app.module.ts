@@ -14,6 +14,7 @@ import { DatabaseConnectionsModule } from './database-connections/database-conne
 import { DatabaseIntrospectionModule } from './database-introspection/database-introspection.module';
 import { EndpointsModule } from './endpoints/endpoints.module';
 import { HealthModule } from './health/health.module';
+import { OpenapiModule } from './openapi/openapi.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RuntimeModule } from './runtime/runtime.module';
 import { SavedQueriesModule } from './saved-queries/saved-queries.module';
@@ -38,6 +39,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
     RuntimeModule,
     ApiKeysModule,
     RequestLogsModule,
+    OpenapiModule,
   ],
 
   controllers: [AppController],
