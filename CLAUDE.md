@@ -1420,6 +1420,7 @@ ApiKeys                 OK
 Logs e metricas         OK
 Auth e ownership        OK
 OpenAPI dinamico        OK
+Frontend web            OK
 ```
 
 Rotas existentes importantes:
@@ -1478,6 +1479,24 @@ GET    /auth/me
 GET    /projects/:projectId/openapi
 ```
 
+Painel web (apps/web), consumindo as rotas acima:
+
+```text
+/login
+/signup
+/projects
+/projects/[projectId]
+/projects/[projectId]/database
+/projects/[projectId]/queries
+/projects/[projectId]/queries/new
+/projects/[projectId]/queries/[queryId]
+/projects/[projectId]/endpoints
+/projects/[projectId]/endpoints/[endpointId]
+/projects/[projectId]/api-keys
+/projects/[projectId]/logs
+/projects/[projectId]/openapi
+```
+
 Projeto de demonstração existente:
 
 ```text
@@ -1512,13 +1531,13 @@ Implementação principal pendente:
 [ ] Swagger UI
 [x] AuthModule
 [x] autorização por proprietário
-[ ] frontend
-[ ] dashboard
-[ ] explorer do banco
-[ ] Monaco SQL editor
-[ ] tela de endpoints
-[ ] documentação
-[ ] métricas
+[x] frontend
+[x] dashboard
+[x] explorer do banco
+[x] editor SQL (CodeMirror 6 no lugar do Monaco)
+[x] tela de endpoints
+[x] documentação
+[x] métricas
 [ ] testes automatizados completos
 [ ] Dockerização final das aplicações
 [ ] documentação técnica
