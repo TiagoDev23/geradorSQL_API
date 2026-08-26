@@ -766,6 +766,7 @@ RuntimeModule ✅
 ApiKeysModule ✅
 RequestLogsModule ✅
 AuthModule ✅
+OpenapiModule ✅
 ```
 
 Criar gradualmente:
@@ -1418,6 +1419,7 @@ Runtime dinamico        OK
 ApiKeys                 OK
 Logs e metricas         OK
 Auth e ownership        OK
+OpenAPI dinamico        OK
 ```
 
 Rotas existentes importantes:
@@ -1472,6 +1474,8 @@ GET    /projects/:projectId/metrics
 POST   /auth/signup
 POST   /auth/login
 GET    /auth/me
+
+GET    /projects/:projectId/openapi
 ```
 
 Projeto de demonstração existente:
@@ -1504,7 +1508,8 @@ Implementação principal pendente:
 [x] RuntimeModule
 [x] RequestLogs
 [ ] limites/paginação
-[ ] OpenAPI/Swagger
+[x] OpenAPI dinamico
+[ ] Swagger UI
 [x] AuthModule
 [x] autorização por proprietário
 [ ] frontend

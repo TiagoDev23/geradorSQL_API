@@ -1081,3 +1081,68 @@ transferência é uma decisão do responsável pelo ambiente.
 Segurança e implementação. A coexistência de dois mecanismos de autenticação
 com propósitos distintos, e a verificação de posse pela própria condição da
 consulta, são diretamente aproveitáveis.
+
+---
+
+### [2026-08-21] — M10: OpenAPI dinâmico
+
+**Objetivo**
+
+Gerar a especificação OpenAPI dos endpoints publicados de um projeto, sem
+escrever documentação para cada endpoint.
+
+**Implementação realizada**
+
+Rota administrativa que devolve um documento OpenAPI 3.0.3 construído a partir
+do que está cadastrado: projeto, endpoints publicados, consultas e parâmetros.
+Cada endpoint vira um caminho com método GET, seus parâmetros de query string
+tipados, os status que o runtime produz e a referência ao esquema de segurança
+por API Key.
+
+**Decisões técnicas**
+
+- nenhuma dependência acrescentada: o documento é um objeto JSON montado
+  diretamente, o que dispensa `@nestjs/swagger`, cuja configuração é estática
+  no início da aplicação e não serviria a um documento que varia por projeto;
+- Swagger UI ficou de fora. Exibi-la exigiria dependência nova e uma rota que
+  servisse os arquivos da interface por projeto, sem benefício para o objetivo
+  do milestone, que é a especificação;
+- o filtro por endpoint publicado vai na consulta ao banco: o que não está
+  publicado não chega a ser lido;
+- as linhas do resultado são descritas como objetos genéricos. A consulta é um
+  `SELECT` arbitrário, e descrever suas colunas exigiria interpretar SQL —
+  complexidade desproporcional ao ganho;
+- o restante do envelope é descrito com precisão, refletindo exatamente o que o
+  runtime devolve hoje: colunas, linhas, contagem, limite, indicador de corte e
+  duração;
+- o SQL não entra na especificação nem é lido do banco: apenas os metadados
+  necessários;
+- servidor declarado como caminho relativo, evitando depender de configuração
+  de domínio;
+- a rota é administrativa, com JWT e verificação de posse, embora descreva o
+  runtime, que é autenticado por API Key. Nenhuma chave real aparece no
+  documento.
+
+**Validação realizada**
+
+Build, `tsc --noEmit` e ESLint sem erros. Suíte ampliada de 307 para 332 testes
+em 17 arquivos, cobrindo os sete tipos de parâmetro, obrigatoriedade, valor
+padrão, esquema de segurança, respostas e ausência de dados sensíveis.
+
+Verificação funcional: projeto vazio gerou documento válido sem caminhos; sem
+token respondeu 401 e de outro dono, 404. Um endpoint cadastrado durante a
+execução não apareceu enquanto despublicado e passou a aparecer após a
+publicação, com os três parâmetros corretamente tipados. Um segundo endpoint
+elevou o documento a dois caminhos, sem qualquer alteração de código entre as
+chamadas. Confirmou-se que o esquema documentado da resposta coincide campo a
+campo com o que o runtime devolve.
+
+**Resultado**
+
+Cada projeto passou a expor a especificação dos seus endpoints publicados,
+gerada a partir da própria configuração.
+
+**Uso no TCC**
+
+Implementação e resultados. A documentação derivada da configuração, sem código
+por endpoint, reforça o argumento central do runtime dinâmico.
