@@ -1421,6 +1421,7 @@ Logs e metricas         OK
 Auth e ownership        OK
 OpenAPI dinamico        OK
 Frontend web            OK
+Dockerizacao completa   OK
 ```
 
 Rotas existentes importantes:
@@ -1526,9 +1527,9 @@ Implementação principal pendente:
 [x] ApiKeysModule
 [x] RuntimeModule
 [x] RequestLogs
-[ ] limites/paginação
+[x] limite de linhas e truncamento (paginação sobre SQL arbitrário ficou fora do MVP)
 [x] OpenAPI dinamico
-[ ] Swagger UI
+[-] Swagger UI (fora do escopo do MVP — ver D17)
 [x] AuthModule
 [x] autorização por proprietário
 [x] frontend
@@ -1538,10 +1539,10 @@ Implementação principal pendente:
 [x] tela de endpoints
 [x] documentação
 [x] métricas
-[ ] testes automatizados completos
-[ ] Dockerização final das aplicações
-[ ] documentação técnica
-[ ] testes de desempenho
+[x] testes automatizados
+[x] Dockerização final das aplicações
+[x] documentação técnica
+[x] testes de desempenho
 ```
 
 ---
