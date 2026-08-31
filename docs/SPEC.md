@@ -1,7 +1,8 @@
-# SPEC — Especificação funcional
+# Especificação do MVP
 
-Documento derivado de `CLAUDE.md` e do código existente no repositório.
-Descreve o que a ferramenta deve fazer e qual é a fronteira do MVP.
+O que a plataforma faz e onde termina o escopo. Para como ela está construída,
+ver [ARCHITECTURE](ARCHITECTURE.md); para o porquê das escolhas,
+[DECISIONS](DECISIONS.md).
 
 ---
 
@@ -10,137 +11,112 @@ Descreve o que a ferramenta deve fazer e qual é a fronteira do MVP.
 Ferramenta web para criação dinâmica de endpoints REST destinados à consulta e
 disponibilização de grandes volumes de dados armazenados em bancos PostgreSQL.
 
-O usuário conecta um banco PostgreSQL já existente, escreve consultas `SELECT`,
-define parâmetros e publica essas consultas como endpoints HTTP que retornam JSON.
-
-O foco é consulta e disponibilização de dados. O projeto não pretende ser um
-backend builder genérico nem reproduzir Supabase, Hasura ou PostgREST.
-
----
-
-## 2. Escopo do MVP
-
-Incluído:
-
-- PostgreSQL como único SGBD suportado;
-- consultas restritas a `SELECT`;
-- endpoints publicados exclusivamente como `GET`;
-- parâmetros de consulta tipados;
-- resposta em JSON;
-- autenticação de consumo por API Key;
-- registro de logs de requisição;
-- limitação da quantidade de registros retornados;
-- interface web;
-- documentação dos endpoints publicados;
-- execução dinâmica das consultas, sem geração de código por endpoint.
-
-Fora do MVP:
-
-- `INSERT`, `UPDATE`, `DELETE`, `PATCH`;
-- geração de controllers físicos por endpoint;
-- microserviços, Kubernetes, event sourcing, filas distribuídas;
-- MySQL, Oracle, SQL Server;
-- workflows de negócio.
+O usuário conecta um PostgreSQL já existente, escreve consultas `SELECT`, define
+parâmetros e publica essas consultas como rotas HTTP que retornam JSON. O foco é
+consulta e disponibilização de dados: o projeto não é um backend builder genérico
+e não pretende reproduzir Supabase, Hasura ou PostgREST.
 
 ---
 
-## 3. Entidades do domínio
+## 2. Fluxo principal
 
-Modeladas em `apps/api/prisma/schema.prisma`:
+```text
+criar conta → criar projeto → cadastrar conexão PostgreSQL → testar conexão →
+inspecionar schemas e tabelas → escrever SELECT → definir parâmetros →
+executar consulta de teste → salvar → publicar como endpoint →
+gerar API Key → consumir o endpoint → acompanhar logs e OpenAPI
+```
+
+Este fluxo tem prioridade sobre qualquer funcionalidade secundária.
+
+---
+
+## 3. Requisitos funcionais
+
+| # | Requisito |
+|---|---|
+| RF01 | Cadastro e login de usuários, com sessão autenticada por JWT |
+| RF02 | Criação e administração de projetos, identificados por `slug` único |
+| RF03 | Cadastro, edição e teste de conexões PostgreSQL externas |
+| RF04 | Introspecção do banco conectado: schemas, tabelas, views, colunas, PK, FK |
+| RF05 | Consultas `SELECT` salvas, associadas a uma conexão |
+| RF06 | Parâmetros tipados e posicionais por consulta |
+| RF07 | Execução de teste da consulta, com limite de registros |
+| RF08 | Publicação e despublicação de consultas como endpoints versionados |
+| RF09 | Runtime que resolve e executa endpoints publicados por rota dinâmica |
+| RF10 | API Keys por projeto, com revogação e expiração opcional |
+| RF11 | Registro de execuções e métricas agregadas por projeto |
+| RF12 | Especificação OpenAPI gerada dos endpoints publicados |
+| RF13 | Interface web cobrindo todo o fluxo acima |
+
+Tipos de parâmetro suportados: `STRING`, `INTEGER`, `FLOAT`, `BOOLEAN`, `DATE`,
+`DATETIME`, `UUID`.
+
+---
+
+## 4. Entidades
 
 | Entidade | Função |
 |---|---|
 | `User` | proprietário dos projetos |
 | `Project` | agrupador lógico, identificado por `slug` único |
-| `DatabaseConnection` | credenciais de um PostgreSQL externo, pertencente a um projeto |
+| `DatabaseConnection` | credenciais de um PostgreSQL externo, dentro de um projeto |
 | `SavedQuery` | consulta SQL associada a uma conexão |
 | `QueryParameter` | parâmetro tipado e posicional de uma `SavedQuery` |
 | `Endpoint` | publicação de uma `SavedQuery` como rota HTTP |
-| `ApiKey` | credencial de consumo, pertencente a um projeto |
-| `RequestLog` | registro técnico de execução de um endpoint |
+| `ApiKey` | credencial de consumo, dentro de um projeto |
+| `RequestLog` | registro técnico da execução de um endpoint |
 
-Tipos de parâmetro suportados (`QueryParameterType`):
-`STRING`, `INTEGER`, `FLOAT`, `BOOLEAN`, `DATE`, `DATETIME`, `UUID`.
-
----
-
-## 4. Funcionalidades previstas
-
-1. criar e administrar projetos;
-2. cadastrar conexões PostgreSQL e testá-las;
-3. inspecionar a estrutura do banco conectado (schemas, tabelas, colunas, PK/FK);
-4. escrever, salvar e executar consultas `SELECT` de teste;
-5. definir parâmetros das consultas;
-6. publicar consultas salvas como endpoints versionados;
-7. consumir os endpoints por rota dinâmica;
-8. proteger o consumo com API Keys;
-9. acompanhar logs e métricas de execução;
-10. visualizar a documentação dos endpoints publicados.
+Definidas em `apps/api/prisma/schema.prisma`.
 
 ---
 
 ## 5. Contrato de consumo
 
-Rota dinâmica planejada:
-
 ```http
 GET /runtime/:projectSlug/:version/:endpointSlug
+x-api-key: <api-key>
 ```
 
-A URL é derivada de `Project.slug`, `Endpoint.version` e `Endpoint.slug`,
-combinação garantida como única pelo índice `@@unique([projectId, version, slug])`.
+A URL deriva de `Project.slug`, `Endpoint.version` e `Endpoint.slug` — combinação
+única por `@@unique([projectId, version, slug])`. Apenas endpoints com
+`isPublished = true` são executáveis.
 
-Parâmetros trafegam pela query string HTTP e são convertidos para os tipos
-declarados em `QueryParameter` antes de compor o array de valores enviado ao
-PostgreSQL. Apenas endpoints com `isPublished = true` são executáveis.
+Os valores chegam pela query string e são convertidos para os tipos declarados em
+`QueryParameter` antes de compor o array enviado ao PostgreSQL. A resposta traz
+`columns`, `rows`, `rowCount`, `maxRows`, `truncated` e `durationMs`.
 
 ---
 
 ## 6. Regras de segurança funcionais
 
 - senha de banco externo nunca é persistida nem retornada em texto puro;
-- API Key completa nunca é persistida; armazena-se `keyHash` e `keyPrefix`;
-- consultas passam por validação própria antes da execução, não apenas por
-  verificação de prefixo textual;
-- valores recebidos pelo endpoint nunca são concatenados ao SQL — a execução é
-  sempre parametrizada (`$1`, `$2`, ...);
-- toda resposta respeita o limite definido em `Endpoint.maxRows`;
-- logs registram dados técnicos, nunca credenciais ou segredos.
+- API Key completa nunca é persistida: guardam-se `keyHash` e `keyPrefix`, e o
+  valor é exibido uma única vez;
+- consultas passam por validação própria antes de gravar e antes de executar, não
+  apenas por verificação de prefixo textual;
+- valores recebidos nunca são concatenados ao SQL — a execução é sempre
+  parametrizada (`$1`, `$2`, ...);
+- toda resposta respeita o limite de `Endpoint.maxRows`;
+- cada usuário acessa apenas os próprios recursos;
+- logs registram dados técnicos, nunca credenciais, chaves ou SQL.
 
 ---
 
-## 7. Estado atual da interface HTTP
+## 7. Restrições do MVP
 
-Implementado:
-
-```http
-GET    /health
-GET    /health/database
-
-POST   /projects
-GET    /projects
-GET    /projects/:id
-PATCH  /projects/:id
-DELETE /projects/:id
-```
-
-Existe também `GET /` como resposta remanescente do scaffold do NestJS.
-
-Ainda não implementado: conexões, introspecção, consultas salvas, endpoints,
-API Keys, runtime, logs e autenticação.
+- PostgreSQL como único SGBD suportado;
+- consultas restritas a `SELECT`;
+- endpoints publicados exclusivamente como `GET`;
+- resposta em JSON;
+- consumo autenticado por API Key; painel autenticado por JWT;
+- limite de registros por endpoint, sem paginação sobre SQL arbitrário.
 
 ---
 
-## 8. Critério de conclusão do MVP
+## 8. Fora do escopo
 
-O MVP estará funcional quando um usuário conseguir percorrer integralmente:
-
-```text
-criar conta → criar projeto → cadastrar PostgreSQL → testar conexão →
-visualizar tabelas e colunas → escrever SELECT → executar SELECT de teste →
-definir parâmetros → salvar query → criar endpoint → publicar endpoint →
-gerar API Key → consumir GET /runtime/projeto/v1/endpoint →
-receber JSON → visualizar o log da requisição
-```
-
-Esse fluxo tem prioridade sobre qualquer funcionalidade secundária.
+`INSERT`, `UPDATE`, `DELETE` e `PATCH`; geração de controllers por endpoint;
+MySQL, Oracle e SQL Server; microserviços, Kubernetes, filas e event sourcing;
+GraphQL; RBAC, organizações e equipes; rate limiting; Swagger UI embarcado
+([D17](DECISIONS.md)).

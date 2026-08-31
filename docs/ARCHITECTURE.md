@@ -1,131 +1,93 @@
-# ARCHITECTURE — Arquitetura da solução
+# Arquitetura
 
-Documento derivado de `CLAUDE.md` e do código existente no repositório.
-Descreve como a aplicação está organizada e por que existem dois caminhos
-distintos de acesso a dados.
+Como o sistema está organizado. Para o escopo funcional, ver [SPEC](SPEC.md);
+para as justificativas das escolhas, [DECISIONS](DECISIONS.md).
 
 ---
 
-## 1. Princípio central: dois contextos de dados
+## 1. Dois contextos de dados
 
-A aplicação manipula dois tipos de banco com finalidades e tecnologias distintas.
+O princípio que estrutura o resto da aplicação: existem dois tipos de banco, com
+finalidades e tecnologias distintas.
 
-**Banco interno da plataforma** — dados administrativos da ferramenta (usuários,
-projetos, conexões, consultas, parâmetros, endpoints, API Keys, logs). Schema
-conhecido em tempo de desenvolvimento, versionado por migrations.
+**Banco interno da plataforma** — metadados da ferramenta (usuários, projetos,
+conexões, consultas, endpoints, chaves, logs). Schema conhecido em tempo de
+desenvolvimento e versionado por migrations.
 
 ```text
 NestJS → Prisma → PostgreSQL da plataforma
 ```
 
-**Bancos PostgreSQL externos** — bancos de terceiros cadastrados pelos usuários.
-Schema desconhecido em tempo de desenvolvimento, fora da governança da aplicação.
+**Bancos dos usuários** — PostgreSQL de terceiros, com schema arbitrário
+descoberto em tempo de execução e fora da governança da aplicação.
 
 ```text
 NestJS → node-postgres (pg) → PostgreSQL do usuário
 ```
 
-Restrições que decorrem disso:
-
-- Prisma é usado exclusivamente no banco interno;
-- não se gera Prisma Client dinamicamente para bancos externos;
-- não existe schema Prisma nem migration para banco de usuário;
-- a aplicação nunca executa migration em banco externo.
+Daí decorre que o Prisma é usado exclusivamente no banco interno, que não existe
+schema Prisma nem migration para banco de usuário, e que a aplicação nunca
+executa migration em banco externo.
 
 ---
 
-## 2. Visão macro
+## 2. Control Plane e Data Plane
+
+A aplicação é um **monólito modular**: um processo NestJS, com separação lógica
+por módulos, sem fronteiras de rede.
 
 ```text
-Next.js (apps/web)
-      │ HTTP
-      ▼
-NestJS (apps/api)
-      │
-      ├── Control Plane
-      │     ├── Users/Auth
-      │     ├── Projects
-      │     ├── Database Connections
-      │     ├── Introspection
-      │     ├── Saved Queries
-      │     ├── Query Parameters
-      │     ├── Endpoints
-      │     ├── API Keys
-      │     └── Logs
-      │
-      └── Data Plane / Runtime
-                │
-                ▼
-               pg
-                │
-                ▼
-      PostgreSQL cadastrado pelo usuário
+Control Plane                        Data Plane / Runtime
+
+Next.js (apps/web)                   Cliente HTTP
+   ↓ JWT                                ↓ x-api-key
+NestJS — Auth, Projects,             NestJS — RuntimeModule
+Connections, Introspection,             ↓
+SavedQueries, Endpoints,             SavedQuery + QueryParameter
+ApiKeys, Logs, OpenAPI                  ↓ node-postgres
+   ↓ Prisma                          PostgreSQL do usuário
+PostgreSQL da plataforma
 ```
 
-A aplicação é um **monólito modular**. O Control Plane administra metadados; o
-Data Plane executa consultas nos bancos dos usuários. A separação é lógica,
-por módulos NestJS — não há divisão em processos ou serviços.
+As duas autenticações são independentes e não se misturam. O guard JWT é global;
+o runtime é a única rota marcada como pública, e valida a API Key internamente.
 
 ---
 
-## 3. Estrutura do repositório
+## 3. Modelo de execução
+
+Publicar um endpoint não gera arquivo de controller. Uma rota genérica resolve
+todos os endpoints em tempo de requisição:
+
+```http
+GET /runtime/:projectSlug/:version/:endpointSlug
+```
 
 ```text
-Meu-gerador-de-api/
-├── apps/
-│   ├── api/        NestJS + Prisma + pg
-│   └── web/        Next.js
-├── packages/
-│   └── contracts/  reservado para contratos compartilhados
-├── docs/
-├── infra/
-├── docker-compose.yml
-└── pnpm-workspace.yaml
+resolver endpoint publicado (projeto + versão + slug)
+   ↓
+autenticar API Key e conferir o projeto
+   ↓
+carregar SavedQuery, parâmetros e conexão
+   ↓
+converter e validar os valores recebidos
+   ↓
+executar SQL parametrizado via pg, com limite aplicado
+   ↓
+retornar JSON e registrar RequestLog
 ```
 
-Gerenciador de pacotes: **pnpm**, com workspace único na raiz.
-`packages/contracts` e `infra/` estão reservados e ainda vazios.
+O endpoint é resolvido **antes** da autenticação para que uma falha de chave
+possa ser registrada com o endpoint que se tentou acessar; `RequestLog` exige um
+`endpointId`. Rota inexistente é o único caminho sem registro.
+
+`Endpoint` referencia `SavedQuery` e não duplica o SQL. A mesma função de
+execução atende o runtime e a execução de teste do painel, para que as garantias
+de segurança não divirjam entre os dois caminhos.
 
 ---
 
-## 4. Módulos NestJS
-
-Implementados:
-
-| Módulo | Local | Responsabilidade |
-|---|---|---|
-| `ConfigModule` | global | variáveis de ambiente |
-| `PrismaModule` | `src/database/prisma` | acesso ao banco interno |
-| `HealthModule` | `src/health` | verificação de disponibilidade |
-| `ProjectsModule` | `src/projects` | CRUD de projetos |
-| `CryptoModule` | `src/common/crypto` | criptografia de credenciais |
-
-Previstos: `DatabaseConnectionsModule`, `DatabaseIntrospectionModule`,
-`SavedQueriesModule`, `EndpointsModule`, `ApiKeysModule`, `RuntimeModule`,
-`RequestLogsModule`, `AuthModule`.
-
-`PrismaModule` e `CryptoModule` são declarados `@Global`, pois são
-infraestrutura transversal consumida por praticamente todos os módulos de negócio.
-
----
-
-## 5. Acesso ao banco interno
-
-`PrismaService` estende `PrismaClient` e é configurado com o driver adapter
-`@prisma/adapter-pg` sobre um `Pool` do `pg`. O serviço implementa
-`OnModuleInit`/`OnModuleDestroy`: conecta na inicialização e, ao encerrar,
-desconecta o client e finaliza o pool. `main.ts` habilita `enableShutdownHooks()`
-para que esses ciclos sejam efetivamente disparados.
-
-O Prisma Client é gerado em `apps/api/src/generated/prisma`, com
-`moduleFormat = "cjs"`, e não é versionado no Git.
-
-A URL de conexão não fica no `schema.prisma`: o datasource declara apenas o
-provider, e a URL é resolvida em `prisma.config.ts` a partir de `DATABASE_URL`.
-
----
-
-## 6. Modelo de dados interno
+## 4. Modelo de dados interno
 
 ```text
 User
@@ -140,81 +102,116 @@ User
              └── RequestLog
 ```
 
-Políticas de exclusão adotadas no schema:
+Políticas de exclusão:
 
-- `Cascade` no que é parte indissociável do pai (projetos de um usuário,
-  conexões e endpoints de um projeto, parâmetros de uma consulta);
-- `Restrict` no que é referenciado por artefatos publicados — uma
-  `DatabaseConnection` com consultas e uma `SavedQuery` com endpoints não podem
-  ser removidas, evitando endpoint publicado apontando para origem inexistente;
-- `SetNull` em `RequestLog.apiKeyId`, preservando o histórico de requisições
-  mesmo após a remoção da chave.
+- `Cascade` no que é parte indissociável do pai — projetos de um usuário,
+  conexões e endpoints de um projeto, parâmetros de uma consulta;
+- `Restrict` no que sustenta artefatos publicados — uma conexão com consultas e
+  uma consulta com endpoints não podem ser removidas;
+- `SetNull` em `RequestLog.apiKeyId`, preservando o histórico após a revogação.
 
-`Endpoint` referencia `SavedQuery` e não duplica o SQL. `Endpoint` não possui
-campo `method`, porque no MVP toda publicação é `GET`.
+A posse é sempre verificada pela cadeia até o `User`, e recursos de outro
+proprietário respondem 404 em vez de 403: informar "proibido" confirmaria a
+existência do recurso.
 
 ---
 
-## 7. Runtime dinâmico
+## 5. Acesso ao banco interno
 
-Nenhum arquivo de controller é gerado quando um endpoint é publicado. Uma única
-rota genérica resolve todos os endpoints em tempo de requisição:
+`PrismaService` estende `PrismaClient` sobre o driver adapter
+`@prisma/adapter-pg` e um `Pool` do `pg`. Conecta em `OnModuleInit` e encerra
+client e pool em `OnModuleDestroy`; `main.ts` habilita `enableShutdownHooks()`.
 
-```http
-GET /runtime/:projectSlug/:version/:endpointSlug
-```
+O client é gerado em `apps/api/src/generated/prisma`, com `moduleFormat = "cjs"`,
+e não é versionado. O `datasource` declara apenas o provider — a URL é resolvida
+em `prisma.config.ts` a partir de `DATABASE_URL`.
 
-Fluxo previsto:
+---
+
+## 6. Acesso aos bancos externos
+
+`ExternalDatabaseService` é o ponto único: decifra a credencial, abre um cliente
+temporário, aplica timeouts de 5 s (conexão, `query_timeout` e
+`statement_timeout`), encerra o cliente em `finally` e converte erros do
+PostgreSQL em respostas seguras. Nenhum módulo de negócio repete essas
+responsabilidades.
+
+A introspecção consulta `pg_catalog` — e não `information_schema` — porque
+precisa da ordem das colunas em chaves compostas e do tipo formatado da coluna,
+que o padrão não expõe de forma confiável. Schema e tabela viajam sempre como
+parâmetros posicionais.
+
+---
+
+## 7. Segurança arquitetural
+
+- credenciais externas cifradas com AES-256-GCM (`CryptoService`); o valor
+  armazenado concatena IV, authentication tag e ciphertext, e a chave vem de
+  `CONNECTION_ENCRYPTION_KEY`, nunca gravada no banco;
+- API Keys guardadas apenas como hash SHA-256, com prefixo curto para
+  identificação visual;
+- validação de SQL que normaliza comentários, literais e identificadores antes de
+  analisar, de modo que um comando escondido após um comentário não escape;
+- parâmetros sempre enviados como valores posicionais ao driver;
+- limite de linhas aplicado envolvendo a consulta original, com valor controlado
+  pela aplicação;
+- erros do PostgreSQL não são repassados crus ao cliente;
+- CORS por lista explícita de origens, sem curinga.
+
+---
+
+## 8. Configuração TypeScript
+
+O backend usa `module: Node16` / `moduleResolution: Node16` com `strict: true`,
+sem `"type": "module"` e sem extensão `.js` nos imports. Configuração estável
+para o conjunto NestJS 11 + Prisma 7 adotado.
+
+---
+
+## 9. Containers
+
+Quatro serviços em `docker-compose.yml`:
+
+| Serviço | Container | Porta host → interna | Papel |
+|---|---|---|---|
+| `web` | `gerador-api-web` | 3000 | painel Next.js |
+| `api` | `gerador-api-backend` | 3001 | API NestJS |
+| `postgres-platform` | `gerador-api-platform-db` | 5434 → 5432 | banco interno |
+| `postgres-demo` | `gerador-api-demo-db` | 5435 → 5432 | banco externo de demonstração |
+
+A porta 5432 do host está ocupada por uma instalação nativa de PostgreSQL, o que
+explica 5434 e 5435. Dentro da rede do compose os serviços se alcançam pelo nome
+e pela porta interna: a API acessa `postgres-platform:5432`, e uma
+`DatabaseConnection` para o banco demo aponta para `postgres-demo:5432`. Fora do
+Docker, os mesmos bancos respondem em `127.0.0.1:5434` e `127.0.0.1:5435`.
+
+`NEXT_PUBLIC_API_URL` é embutido no bundle em tempo de build e precisa ser o
+endereço alcançável pelo **navegador**, não o nome do serviço.
+
+Instruções de execução ficam no [README](../README.md).
+
+---
+
+## 10. Estrutura do monorepo
 
 ```text
-requisição → resolver projeto → resolver endpoint publicado →
-carregar SavedQuery → carregar parâmetros ordenados por position →
-carregar DatabaseConnection → descriptografar credencial →
-validar e converter parâmetros → executar SQL parametrizado via pg →
-aplicar limite → retornar JSON → registrar RequestLog
+Meu-gerador-de-api/
+├── apps/
+│   ├── api/        NestJS + Prisma + pg
+│   └── web/        Next.js
+├── packages/
+│   └── contracts/  reservado para contratos compartilhados
+├── docs/
+├── infra/
+│   ├── benchmark/      script de avaliação do runtime
+│   └── demo-database/  scripts SQL do banco de demonstração
+└── docker-compose.yml
 ```
 
-Ainda não implementado.
+Gerenciador de pacotes: pnpm, com workspace único na raiz.
 
----
-
-## 8. Segurança
-
-- credenciais de bancos externos são cifradas com AES-256-GCM antes de persistir
-  em `DatabaseConnection.passwordEncrypted`; a chave da aplicação vem de
-  `CONNECTION_ENCRYPTION_KEY` e nunca é gravada no banco;
-- o formato armazenado concatena IV, authentication tag e ciphertext, todos em
-  hexadecimal, separados por `:` — tudo o que é necessário para decifrar, exceto
-  a chave;
-- API Keys são armazenadas apenas como hash, acompanhadas de um prefixo curto
-  usado para identificação visual;
-- consultas passam por camada própria de validação antes da execução;
-- parâmetros são sempre enviados como valores posicionais ao PostgreSQL;
-- erros do PostgreSQL não são repassados crus ao cliente.
-
----
-
-## 9. Configuração TypeScript
-
-O backend usa `module: Node16` e `moduleResolution: Node16` com `strict: true`.
-`apps/api/package.json` não declara `"type": "module"` e os imports TypeScript
-não usam extensão `.js`. Essa configuração é estável para o conjunto
-NestJS + Prisma 7 adotado e não deve ser convertida para ESM sem necessidade real.
-
----
-
-## 10. Ambientes de banco em desenvolvimento
-
-Dois containers definidos em `docker-compose.yml`, ambos `postgres:17-alpine`
-com healthcheck e volume nomeado:
-
-| Container | Porta host | Porta interna | Papel |
-|---|---|---|---|
-| `gerador-api-platform-db` | 5434 | 5432 | banco interno da plataforma |
-| `gerador-api-demo-db` | 5435 | 5432 | banco externo de demonstração |
-
-A porta 5432 do host está ocupada por uma instalação de PostgreSQL nativa no
-Windows, motivo pelo qual os containers são expostos em 5434 e 5435.
-
-O banco demo representa exclusivamente um banco de usuário: é acessado pela
-aplicação através de `pg`, jamais por Prisma.
+Módulos do backend em `apps/api/src`: `auth`, `projects`,
+`database-connections`, `database-introspection`, `saved-queries`, `endpoints`,
+`runtime`, `api-keys`, `request-logs`, `openapi`, `health`, além de `common`
+(crypto, ownership, slug, CORS) e `database` (Prisma). `PrismaModule` e
+`CryptoModule` são `@Global`, por serem infraestrutura transversal.
