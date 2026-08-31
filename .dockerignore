@@ -1,0 +1,48 @@
+# Contexto de build compartilhado pelas imagens da API e do painel.
+#
+# O que precisa entrar: manifestos, lockfile e o codigo-fonte. Tudo o
+# que e instalado ou gerado dentro da imagem fica de fora, para que o
+# build nao dependa do estado da maquina local.
+
+# Dependencias e artefatos locais
+node_modules
+**/node_modules
+dist
+**/dist
+.next
+**/.next
+out
+**/out
+coverage
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Cliente Prisma: gerado durante o build da imagem
+apps/api/src/generated
+
+# Segredos: nunca entram no contexto
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Controle de versao e apoio
+.git
+.gitignore
+.github
+
+# Documentacao e infraestrutura auxiliar
+docs
+infra
+*.md
+!apps/web/README.md
+
+# Ferramentas locais
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.log
