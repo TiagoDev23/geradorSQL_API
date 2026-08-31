@@ -1252,3 +1252,121 @@ reais medidos pela interface.
 A porta host do banco demo passou de 5433 para 5435, porque a 5433 também está
 ocupada no ambiente de desenvolvimento atual; o mapeamento é `5435:5432`. Os
 registros anteriores foram preservados por descreverem a decisão vigente à época.
+
+---
+
+### 2026-08-31 — M12: qualidade, avaliação e fechamento do MVP
+
+**Objetivo**
+
+Consolidar o que foi construído em M1–M11: endurecer o que já existia, ampliar
+a cobertura de testes nos pontos sensíveis, tornar a stack reproduzível por
+Docker e medir o desempenho do runtime.
+
+**Implementação realizada**
+
+Nenhuma funcionalidade nova. As aplicações passaram a ser containerizáveis
+(imagens multi-stage para API e painel, `.dockerignore` e serviços `api` e
+`web` no compose), a configuração de CORS foi normalizada e a suíte cresceu nos
+pontos de risco: parametrização SQL e escopo somente leitura do executor
+compartilhado.
+
+**Decisões técnicas**
+
+- **Migrations por `prisma migrate deploy` na inicialização do container.** Não
+  gera migration nem recria o banco, que é o comportamento adequado fora de
+  desenvolvimento.
+- **Saída `standalone` do Next descartada.** Com o layout de `node_modules` do
+  pnpm, o rastreamento de arquivos copia dependências transitivas do próprio
+  Next pela metade e o servidor não sobe. A imagem leva `node_modules`, o que
+  custa alguns megabytes e não depende de heurística de empacotamento.
+- **Segredos não duplicados no compose.** O serviço `api` lê `apps/api/.env`
+  por `env_file`; o bloco `environment` sobrescreve apenas o que muda dentro da
+  rede (porta, `DATABASE_URL` apontando para `postgres-platform:5432` e
+  `CORS_ORIGINS`).
+- **CORS sem curinga.** Entradas vazias e `*` são descartadas na leitura de
+  `CORS_ORIGINS`; as requisições da plataforma levam credencial, e curinga não
+  é uma origem válida nesse caso.
+- **Swagger UI registrado como fora do escopo do MVP** (D17).
+- **Paginação sobre SQL arbitrário mantida fora do escopo.** O controle
+  existente — limite de linhas por endpoint, `truncated` e timeouts — cobre o
+  requisito de não devolver volume ilimitado.
+
+**Correções**
+
+- `start:prod` apontava para `dist/main`, mas o build gera `dist/src/main.js`;
+  o comando de produção estava quebrado e foi corrigido.
+- `CORS_ORIGINS=""` produzia uma origem em branco na lista de permitidas.
+
+**Validação realizada**
+
+Backend: 361 testes em 19 arquivos (eram 332 em 17). Painel: 25 testes em 6
+arquivos. `tsc --noEmit`, ESLint e build sem erros nos dois aplicativos.
+
+Testes acrescentados no executor compartilhado por runtime e execução de teste:
+valores como `' OR 1=1 --`, `1; DROP TABLE ...` e `abc'); DELETE FROM ...`
+chegam ao driver como parâmetros e não aparecem no texto enviado ao
+PostgreSQL; INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE e múltiplas
+instruções são recusados na revalidação feita no momento da execução; valor de
+tipo incorreto e parâmetro obrigatório ausente falham antes de abrir conexão.
+
+Stack containerizada (`docker compose up -d`) com os quatro serviços
+saudáveis; `migrate deploy` encontrou a migration existente e nada pendente.
+Fluxo ponta a ponta executado contra ela, com a conexão cadastrada pelo nome do
+serviço (`postgres-demo:5432`): conta, projeto, conexão testada respondendo
+PostgreSQL 17.11 em 40 ms, introspecção com 4 schemas e 13 colunas em
+`meteorologia.observacoes`, consulta com dois parâmetros, endpoint publicado,
+API Key, runtime respondendo 200 com 137 registros. Casos de falha conferidos:
+sem chave 401, chave inválida 401, chave revogada 401, parâmetro ausente 400,
+parâmetro de tipo inválido 400, endpoint inexistente 404, control plane sem JWT
+401 e com JWT inválido 401.
+
+Isolamento entre usuários verificado por HTTP em nove recursos — projeto,
+conexão, introspecção, consulta, endpoint, API Key, logs, métricas e OpenAPI:
+o segundo usuário recebeu 404 em todos e nenhum projeto na listagem.
+
+Os registros de execução não contêm a API Key nem o SQL.
+
+**Desempenho**
+
+Avaliação local, com cliente, API e os dois PostgreSQL na mesma máquina; 200
+requisições por cenário, concorrência 10, após aquecimento de 20 requisições.
+Os números descrevem esse ambiente e não representam capacidade de produção.
+
+| Cenário | req/s | média | p50 | p95 | p99 | linhas | falhas |
+|---|---|---|---|---|---|---|---|
+| A — filtro indexável | 103,9 | 95,1 ms | 93,5 ms | 134,4 ms | 144,2 ms | 137 | 0 |
+| B — JOIN | 75,0 | 131,1 ms | 128,7 ms | 167,3 ms | 205,5 ms | 1000 (truncado) | 0 |
+| C — agregação | 55,7 | 178,0 ms | 162,7 ms | 301,2 ms | 327,3 ms | 540 | 0 |
+
+O cenário B alcançou o limite configurado do endpoint e retornou
+`truncated: true`, confirmando o corte. As 600 requisições foram registradas
+como RequestLog e apareceram nas métricas do projeto.
+
+O script usado está em `infra/benchmark/runtime-benchmark.mjs` e não acrescenta
+dependência ao projeto.
+
+**Resultado**
+
+O MVP passou a subir por `docker compose up --build -d`, com o painel em
+`http://localhost:3000` e a API em `http://localhost:3001`, e o fluxo completo
+do trabalho — conectar, consultar, publicar, proteger, consumir, observar — foi
+executado ponta a ponta nessa configuração.
+
+**Problemas encontrados e soluções**
+
+*Problema.* Os containers baixavam o pnpm na inicialização, o que tornava o
+boot dependente de rede e de uma versão não fixada.
+*Solução.* As camadas de execução chamam os binários já instalados
+(`./node_modules/.bin/...`), sem gerenciador de pacotes.
+
+*Problema.* `prisma generate` falha no build por exigir que `DATABASE_URL`
+resolva, embora apenas emita código.
+*Solução.* Um valor de build vive na própria linha do `RUN` e não entra na
+imagem; a URL real chega por ambiente na execução.
+
+**Uso no TCC**
+
+Resultados e avaliação. A tabela de desempenho e as verificações de controle de
+acesso fornecem os dados da seção de avaliação; a stack containerizada sustenta
+a reprodutibilidade descrita na metodologia.

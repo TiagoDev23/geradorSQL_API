@@ -248,3 +248,19 @@ mudança de contrato, que justifica uma nova versão inteira.
 **Consequência.** A unicidade da rota é garantida pelo índice
 `@@unique([projectId, version, slug])`. Publicar uma variação incompatível de
 um endpoint significa criar `v2` com o mesmo slug, mantendo `v1` no ar.
+
+---
+
+## D17 — Swagger UI fora do escopo do MVP
+
+**Decisão.** A plataforma expõe a especificação OpenAPI em JSON por projeto e
+não embute uma interface de documentação navegável.
+
+**Justificativa.** O wrapper usual do NestJS monta um documento estático no
+boot, enquanto aqui a especificação varia por projeto e é gerada sob demanda.
+Servir a interface exigiria dependência nova e uma rota de assets por projeto,
+sem acrescentar capacidade ao MVP: o JSON já pode ser aberto em qualquer
+visualizador de OpenAPI.
+
+**Consequência.** O painel apresenta o documento em resumo e em JSON. Uma
+interface navegável embarcada continua possível como trabalho futuro.
