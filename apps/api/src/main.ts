@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
+import { parseCorsOrigins } from './common/cors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,9 +11,7 @@ async function bootstrap() {
   // no cabecalho Authorization, nunca em cookie: nao ha credencial de
   // navegador a proteger, e as origens permitidas sao configuraveis.
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',').map((value) =>
-      value.trim(),
-    ) ?? ['http://localhost:3000'],
+    origin: parseCorsOrigins(process.env.CORS_ORIGINS),
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   });
